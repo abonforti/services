@@ -353,9 +353,9 @@ void load_ns_dbase(void) {
 					#ifdef FIX_PASSWORD_SPACE
 					char	*space;
 					#endif
-				
+
 					TRACE();
-					
+
 					#ifdef	FIX_USE_MPOOL
 					ni = mempool_alloc(NickInfo*, nickdb_mempool, FALSE);
 					#else
@@ -416,7 +416,7 @@ void load_ns_dbase(void) {
 					if (ni->freeze)
 						ni->freeze = read_string(f, NICKSERV_DB);
 					if (ni->regemail)
-						ni->regemail = read_string(f, NICKSERV_DB);				
+						ni->regemail = read_string(f, NICKSERV_DB);
 
 					#ifdef FIX_NS_REGMAIL_DB
 
@@ -524,7 +524,7 @@ void save_ns_dbase(void) {
 				write_string(ni->freeze, f, NICKSERV_DB);
 			if (ni->regemail)
 				write_string(ni->regemail, f, NICKSERV_DB);
-			
+
 			write_string(ni->last_usermask ? ni->last_usermask : "", f, NICKSERV_DB);
 			write_string(ni->last_realname ? ni->last_realname : "", f, NICKSERV_DB);
 
@@ -561,7 +561,7 @@ void expire_nicks() {
 	for (i = 65; i < 126; ++i) {
 
 		for (ni = nicklists[i]; ni; ni = next) {
-			
+
 			TRACE();
 			next = ni->next;
 			++count;
@@ -764,7 +764,7 @@ NickInfo *findnick(CSTR nickname) {
 
 	NickInfo *ni;
 
-	
+
 	TRACE_FCLT(FACILITY_NICKSERV_FINDNICK);
 
 	if (IS_NOT_NULL(nickname)) {
@@ -818,7 +818,7 @@ static void delnick(NickInfo *ni) {
 	if (FlagSet(ni->flags, NI_TIMEOUT)) {
 
 		if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
-			log_error(FACILITY_NICKSERV_DELNICK, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+			log_error(FACILITY_NICKSERV_DELNICK, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 				"delnick(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
 	}
 
@@ -828,7 +828,7 @@ static void delnick(NickInfo *ni) {
 	if (FlagSet(ni->flags, NI_ENFORCED)) {
 
 		if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_RELEASE, (unsigned long) ni))
-			log_error(FACILITY_NICKSERV_DELNICK, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+			log_error(FACILITY_NICKSERV_DELNICK, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 				"delnick(): Timeout not found for %s (NickServ/Release)", ni->nick);
 
 		send_QUIT(ni->nick, "Enforcer quitting due to nick expiration.");
@@ -995,7 +995,7 @@ void validate_user(const User *user) {
 		timeout_start_collide(ni, NI_KILL_NORMAL);
 		return;
 	}
-	
+
 	TRACE();
 
 	if (user_is_identified_to(user, user->nick) || (onAccess = is_on_access(user, ni))) {
@@ -1128,10 +1128,10 @@ static void timeout_collide_countdown(Timeout *to) {
 				if (FlagSet(ni->flags, NI_FORBIDDEN))
 					send_notice_lang_to_nick(s_NickServ, ni->nick, lang_id, NS_TIMEOUT_NICK_FORBIDDEN, ni->nick);
 
-				else if (FlagSet(ni->flags, NI_FROZEN))		
+				else if (FlagSet(ni->flags, NI_FROZEN))
 					send_notice_lang_to_nick(s_NickServ, ni->nick, lang_id, NS_TIMEOUT_NICK_FROZEN, ni->nick);
 
-				else	
+				else
 					send_notice_lang_to_nick(s_NickServ, ni->nick, lang_id, NS_TIMEOUT_NICK_REGISTERED, ni->nick);
 			}
 
@@ -1158,7 +1158,7 @@ static void collide(NickInfo *ni, BOOL from_timeout) {
 	if (!from_timeout && FlagSet(ni->flags, NI_TIMEOUT)) {
 
 		if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
-			log_error(FACILITY_NICKSERV_COLLIDE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+			log_error(FACILITY_NICKSERV_COLLIDE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 				"collide(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
 	}
 
@@ -1280,18 +1280,18 @@ static void release(NickInfo *ni, BOOL from_timeout) {
 	TRACE_FCLT(FACILITY_NICKSERV_RELEASE);
 
 	if (!from_timeout) {
-		
+
 		if (FlagSet(ni->flags, NI_TIMEOUT)) {
 
 			if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
-				log_error(FACILITY_NICKSERV_RELEASE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+				log_error(FACILITY_NICKSERV_RELEASE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 					"release(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
 		}
 
 		if (FlagSet(ni->flags, NI_ENFORCED)) {
 
 			if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_RELEASE, (unsigned long) ni))
-				log_error(FACILITY_NICKSERV_RELEASE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+				log_error(FACILITY_NICKSERV_RELEASE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 					"release(): Timeout not found for %s (NickServ/Release)", ni->nick);
 		}
 
@@ -1377,8 +1377,8 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 	TRACE_MAIN();
 	if (IS_NULL(pass = strtok(NULL, " ")) || IS_NULL(email = strtok(NULL, " "))) {
 
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_REGISTER_SYNTAX_ERROR);	
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "REGISTER");	
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_REGISTER_SYNTAX_ERROR);
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "REGISTER");
 	}
 	else if ((NOW < callerUser->lastnickreg + CONF_REGISTER_DELAY) && !is_services_valid_oper(callerUser)) {
 
@@ -1419,8 +1419,8 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 	}
 	else if (str_equals_nocase(source, pass) && IS_NOT_NULL(strtok(NULL, " "))) {
 
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_REGISTER_SYNTAX_ERROR);	
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "REGISTER");	
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_REGISTER_SYNTAX_ERROR);
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "REGISTER");
 	}
 	else if (str_equals_nocase(source, pass) || (str_len(pass) < 5)) {
 
@@ -1514,7 +1514,7 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 				snprintf(misc_buffer, MISC_BUFFER_SIZE, "%s -f %s -t < authnick.txt", CONF_SENDMAIL_PATH, CONF_RETURN_EMAIL);
 				system(misc_buffer);
 
-				snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f authnick.txt");		
+				snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f authnick.txt");
 				system(misc_buffer);
 			}
 			else
@@ -1685,7 +1685,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 			if (FlagSet(ni->flags, NI_TIMEOUT)) {
 
 				if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
-					log_error(FACILITY_NICKSERV_HANDLE_IDENTIFY, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+					log_error(FACILITY_NICKSERV_HANDLE_IDENTIFY, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 						"do_identify(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
 
 				RemoveFlag(ni->flags, NI_TIMEOUT);
@@ -2129,7 +2129,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_WITH_CCODES);
 
 		else {
-		
+
 			/* "param" holds the old password. */
 
 			if (str_equals(param, callerUser->ni->pass)) {
@@ -2432,7 +2432,7 @@ static void do_set_email(const User *callerUser, CSTR param, BOOL hasmail) {
 				snprintf(misc_buffer, MISC_BUFFER_SIZE, "%s -f %s -t < email.txt", CONF_SENDMAIL_PATH, CONF_RETURN_EMAIL);
 				system(misc_buffer);
 
-				snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f email.txt");		
+				snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f email.txt");
 				system(misc_buffer);
 			}
 			else
@@ -2777,7 +2777,7 @@ static void do_access(CSTR source, User *callerUser, ServiceCommandData *data) {
 
 		TRACE_MAIN();
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ACCESS_LIST_HEADER, callerUser->ni->nick);
-		
+
 		for (anAccess = callerUser->ni->access, accessIdx = 0; (accessIdx < callerUser->ni->accesscount); ++anAccess, ++accessIdx) {
 
 			if (mask && !str_match_wild_nocase(mask, *anAccess))
@@ -2885,7 +2885,7 @@ static void do_access(CSTR source, User *callerUser, ServiceCommandData *data) {
 			callerUser->ni->access[callerUser->ni->accesscount - 1] = str_duplicate(mask);
 
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ACCESS_MASK_ADDED, mask);
-			
+
 			log_services(LOG_SERVICES_NICKSERV_ACCESS, "ADD %s -- by %s (%s@%s)", mask, source, callerUser->username, callerUser->host);
 		}
 	}
@@ -2971,7 +2971,7 @@ static void do_access(CSTR source, User *callerUser, ServiceCommandData *data) {
 		callerUser->ni->accesscount = 0;
 		mem_free(callerUser->ni->access);
 		callerUser->ni->access = NULL;
-		
+
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ACCESS_LIST_WIPED);
 
 		if (CONF_SET_READONLY)
@@ -2989,7 +2989,7 @@ static void do_access(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_acc(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	User *user;
 	NickInfo *ni;
@@ -3044,7 +3044,7 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 	}
 	else if (str_len(nick) > NICKMAX)
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), ERROR_NICK_MAX_LENGTH, NICKMAX);
-	
+
 	else if (IS_NULL(ni = findnick(nick)))
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), ERROR_NICK_NOT_REG, nick);
 
@@ -3081,7 +3081,7 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_REAL_NAME, ni->last_realname);
 
 		if (IS_NOT_NULL(user)) {
-			
+
 			if (user_is_identified_to(user, ni->nick))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_IS_ONLINE_ID, ni->nick);
 
@@ -3176,10 +3176,10 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 			TRACE_MAIN();
 			if (FlagSet(ni->flags, NI_FROZEN))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_OPER_NICK_FROZEN, ni->freeze);
-		
+
 			if (FlagSet(ni->flags, NI_MARK))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_OPER_NICK_MARKED, ni->mark);
-			
+
 			if (FlagSet(ni->flags, NI_HOLD))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_OPER_NICK_HELD, ni->hold);
 
@@ -3202,7 +3202,7 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 }
 
 /*********************************************************/
-			
+
 static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) {
 
 	const char *nick, *pass;
@@ -3286,7 +3286,7 @@ static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) 
 /*********************************************************/
 
 static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) {
-				
+
 	const char *nick, *pass;
 	NickInfo *ni;
 
@@ -3294,7 +3294,7 @@ static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_RELEASE);
 
 	if (IS_NULL(nick = strtok(NULL, " ")) || IS_NULL(pass = strtok(NULL, " "))) {
-		
+
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RELEASE_SYNTAX_ERROR);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "RELEASE");
 	}
@@ -3428,13 +3428,13 @@ static void do_ghost(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_delete(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
 
-	
+
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_DELETE);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_DELETE_SYNTAX_ERROR);
@@ -3543,24 +3543,24 @@ static void do_delete(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
-	
+
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_SENDCODE);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
-		
+
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SENDCODE_SYNTAX_ERROR);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), OPER_GET_MORE_INFO_ON_COMMAND, s_NS, "SENDCODE");
 	}
 	else if (str_len(nick) > NICKMAX) {
-		
+
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), OPER_ERROR_NICK_MAX_LENGTH, NICKMAX);
-		
+
 		if (data->operMatch)
 			LOG_SNOOP(s_OperServ, "NS *SC -- by %s (%s@%s) [Nick > %d]", callerUser->nick, callerUser->username, callerUser->host, NICKMAX);
-		else	
+		else
 			LOG_SNOOP(s_OperServ, "NS *SC -- by %s (%s@%s) through %s [Nick > %d]", callerUser->nick, callerUser->username, callerUser->host, data->operName, NICKMAX);
 	}
 	else if (IS_NULL(ni = findnick(nick))) {
@@ -3574,16 +3574,16 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 	}
 	else if (FlagSet(ni->flags, NI_FORBIDDEN))
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FORBIDDEN, ni->nick);
-	
+
 	else if (!FlagSet(ni->flags, NI_AUTH | NI_DROP | NI_MAILCHANGE) && (ni->auth == 0))
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SENDCODE_ERROR_NO_CODE, ni->nick);
-	
+
 	else {
-		
+
 		FILE *mailfile;
 		char type[8];
 		LANG_MSG_ID operation_msg_id;
-		
+
 		if (FlagSet(ni->flags, NI_DROP)) {
 			snprintf(type, 7, "DROP");
 			operation_msg_id = NS_SENDCODE_EMAIL_SUBJECT_DROP;
@@ -3591,12 +3591,12 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 		else if (FlagSet(ni->flags, NI_MAILCHANGE)) {
 			snprintf(type, 7, "MAIL");
 			operation_msg_id = NS_SENDCODE_EMAIL_SUBJECT_MAIL;
-		} 
+		}
 		else {  /* It must be a registration code then... */
 			snprintf(type, 7, "AUTH");
 			operation_msg_id = NS_SENDCODE_EMAIL_SUBJECT_AUTH;
 		}
-		
+
 		if (data->operMatch) {
 
 			LOG_SNOOP(s_OperServ, "NS SC %s -- by %s (%s@%s) [%s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, type);
@@ -3625,7 +3625,7 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 
 			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDCODE_EMAIL_SUBJECT), lang_msg(GetNickLang(ni), operation_msg_id), ni->nick);
 			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDCODE_EMAIL_TEXT), data->operName, timebuf, ni->auth);
-			
+
 			if (FlagSet(ni->flags, NI_AUTH)) {
 				fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDCODE_EMAIL_AUTH), CONF_NETWORK_NAME, ni->nick, ni->auth);
 			}
@@ -3636,14 +3636,14 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 				fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDCODE_EMAIL_MAIL1), ni->email, ni->regemail, CONF_NETWORK_NAME, ni->nick, ni->auth);
 				fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDCODE_EMAIL_MAIL2), CONF_NETWORK_NAME, ni->nick);
 			}
-			
+
 			fprintf(mailfile, lang_msg(GetNickLang(ni), CSNS_EMAIL_TEXT_ABUSE), MAIL_ABUSE, CONF_NETWORK_NAME);
 			fclose(mailfile);
 
 			snprintf(misc_buffer, MISC_BUFFER_SIZE, "%s -f %s -t < sendcode.txt", CONF_SENDMAIL_PATH, CONF_RETURN_EMAIL);
 			system(misc_buffer);
 
-			snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f sendcode.txt");		
+			snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f sendcode.txt");
 			system(misc_buffer);
 		}
 		else
@@ -3652,7 +3652,7 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 }
 
 static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data) {
-				
+
 	const char *nick;
 	NickInfo *ni;
 
@@ -3697,7 +3697,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 			LOG_SNOOP(s_OperServ, "NS *S %s -- by %s (%s@%s) through %s [Marked]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
 			send_globops(s_NickServ, "\2%s\2 (through \2%s\2) tried to use SENDPASS on MARKed nick \2%s\2", source, data->operName, ni->nick);
 		}
-		
+
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), OPER_NS_ERROR_NICK_MARKED, ni->nick);
 	}
 	else if (FlagSet(ni->flags, NI_AUTH) || !ni->email)
@@ -3729,7 +3729,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 		srand(randomseed());
 		randID = (NOW + getrandom(1, 99999) * getrandom(1, 9999));
 
-    /* Change the channel password to the new (random) one. */
+    /* Change the nick password to the new (random) one. */
 		snprintf(ni->pass, sizeof(ni->pass), "%s-%lu", CRYPT_NETNAME, randID);
 
 		if (IS_NOT_NULL(mailfile = fopen("sendpass.txt", "w"))) {
@@ -3749,7 +3749,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 			snprintf(misc_buffer, MISC_BUFFER_SIZE, "%s -f %s -t < sendpass.txt", CONF_SENDMAIL_PATH, CONF_RETURN_EMAIL);
 			system(misc_buffer);
 
-			snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f sendpass.txt");		
+			snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f sendpass.txt");
 			system(misc_buffer);
 		}
 		else
@@ -4010,7 +4010,7 @@ static void do_forbid(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_unforbid(CSTR source, User *callerUser, ServiceCommandData *data) {
-				
+
 	const char *nick;
 	NickInfo *ni;
 
@@ -4269,14 +4269,14 @@ static void do_unfreeze(CSTR source, User *callerUser, ServiceCommandData *data)
 		if (data->operMatch) {
 
 			LOG_SNOOP(s_OperServ, "NS -Z %s -- by %s (%s@%s)", ni->nick, callerUser->nick, callerUser->username, callerUser->host);
-			log_services(LOG_SERVICES_NICKSERV_GENERAL, "-Z %s -- by %s (%s@%s)", ni->nick, callerUser->nick, callerUser->username, callerUser->host); 
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "-Z %s -- by %s (%s@%s)", ni->nick, callerUser->nick, callerUser->username, callerUser->host);
 
 			send_globops(s_NickServ, "\2%s\2 UNFROZE nickname \2%s\2", callerUser->nick, ni->nick);
 		}
 		else {
 
 			LOG_SNOOP(s_OperServ, "NS -Z %s -- by %s (%s@%s) through %s", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
-			log_services(LOG_SERVICES_NICKSERV_GENERAL, "-Z %s -- by %s (%s@%s) through %s", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName); 
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "-Z %s -- by %s (%s@%s) through %s", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
 
 			send_globops(s_NickServ, "\2%s\2 (through \2%s\2) UNFROZE nickname \2%s\2", callerUser->nick, data->operName, ni->nick);
 		}
@@ -4291,13 +4291,13 @@ static void do_unfreeze(CSTR source, User *callerUser, ServiceCommandData *data)
 /*********************************************************/
 
 static void do_hold(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_HOLD);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_FLAG_SYNTAX_ERROR, "HOLD");
@@ -4337,7 +4337,7 @@ static void do_hold(CSTR source, User *callerUser, ServiceCommandData *data) {
 
 		TRACE_MAIN();
 		AddFlag(ni->flags, NI_HOLD);
-		
+
 		if (ni->hold)
 			mem_free(ni->hold);
 		ni->hold = str_duplicate(data->operName);
@@ -4367,13 +4367,13 @@ static void do_hold(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_unhold(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_UNHOLD);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_FLAG_SYNTAX_ERROR, "UNHOLD");
@@ -4443,13 +4443,13 @@ static void do_unhold(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_mark(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_MARK);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_FLAG_SYNTAX_ERROR, "MARK");
@@ -4519,13 +4519,13 @@ static void do_mark(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_unmark(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_UNMARK);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_FLAG_SYNTAX_ERROR, "UNMARK");
@@ -4696,13 +4696,13 @@ static void do_authnick(CSTR source, User *callerUser, ServiceCommandData *data)
 /*********************************************************/
 
 static void do_authreset(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	NickInfo *ni;
 	const char *nick;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_AUTHRESET);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_AUTHRESET_SYNTAX_ERROR);
@@ -5205,7 +5205,7 @@ static void do_listreg(CSTR source, User *callerUser, ServiceCommandData *data) 
 		end = "+50";
 
 	TRACE_MAIN();
-	
+
 	/* Intervallo */
 	start_line = strtoul(start, NULL, 10);
 
@@ -5241,7 +5241,7 @@ static void do_listreg(CSTR source, User *callerUser, ServiceCommandData *data) 
 						else
 							send_notice_to_user(s_NickServ, callerUser, "%d) \2%s\2 [%s]", line, ni->nick, ni->last_usermask);
 						break;
-					
+
 					case LR_OUT_REALNAME:
 						send_notice_to_user(s_NickServ, callerUser, "%d) \2%s\2 [%s] [Real Name: %s]", line, ni->nick, ni->last_usermask, ni->last_realname);
 						break;
@@ -5795,7 +5795,7 @@ void nickserv_ds_dump(CSTR sourceNick, const User *callerUser, STR request) {
 			}
 
 			LOG_DEBUG_SNOOP("Command: DUMP NICKSERV GUL -- by %s (%s@%s)", callerUser->nick, callerUser->username, callerUser->host);
-		
+
 		#ifdef FIX_USE_MPOOL
 		} else if (str_equals_nocase(cmd, "POOL")) {
 
@@ -5898,4 +5898,3 @@ unsigned long nickserv_mem_report(CSTR sourceNick, const User *callerUser) {
 
 	return total_mem;
 }
-

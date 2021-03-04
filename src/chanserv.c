@@ -4076,7 +4076,7 @@ static void do_set_founder(User *callerUser, ChannelInfo *ci, CSTR param, CSTR a
 				anAccess->flags = 0;
 				anAccess->creationTime = 0;
 
- 				/* E' possibile chiamarla direttamente qua poiché il for() termina al successivo break. */
+ 				/* E' possibile chiamarla direttamente qua poichï¿½ il for() termina al successivo break. */
 				compact_chan_access_list(ci, 1);
 
 				TRACE_MAIN();
@@ -8500,7 +8500,7 @@ static void do_chan_access_DEL(const int listLevel, CSTR source, const User *cal
 
 	else if ((accessLevel != CS_ACCESS_FOUNDER) && (ci->settings & get_chan_list_lock_flag(listLevel))) {
 
-		/* La lista è bloccata e il chiamante non è identificato come founder del canale. */
+		/* La lista ï¿½ bloccata e il chiamante non ï¿½ identificato come founder del canale. */
 		send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CS_XOP_ERROR_LIST_LOCKED, listName, ci->name);
 	}
 	else {
@@ -8733,7 +8733,7 @@ static void do_chan_access_WIPE(const int listLevel, CSTR source, const User *ca
 
 	else if ((accessLevel != CS_ACCESS_FOUNDER) && (ci->settings & get_chan_list_lock_flag(listLevel))) {
 
-		/* La lista è bloccata e il chiamante non è identificato come founder del canale. */
+		/* La lista ï¿½ bloccata e il chiamante non ï¿½ identificato come founder del canale. */
 		send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CS_XOP_ERROR_LIST_LOCKED, listName, ci->name);
 	}
 	else {
@@ -9403,6 +9403,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 	else {
 
 		FILE *mailfile;
+    unsigned long int randID;
 
 		if (data->operMatch) {
 
@@ -9418,6 +9419,13 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 
 			send_globops(s_ChanServ, "\2%s\2 (through \2%s\2) used SENDPASS on channel \2%s\2", source, data->operName, ci->name);
 		}
+
+    /* Change the password to a random one. */
+		srand(randomseed());
+		randID = (NOW + getrandom(1, 99999) * getrandom(1, 9999));
+
+    /* Change the channel password to the new (random) one. */
+		snprintf(ci->founderpass, sizeof(ci->founderpass), "%s-%lu", CRYPT_NETNAME, randID);
 
 		send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CSNS_SENDPASS_PASSWORD_SENT, ci->founder, ni->email);
 
@@ -12067,3 +12075,4 @@ static void do_chan_access_explist(const int listLevel, CSTR source, const User 
 		send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), END_OF_LIST);
 	}
 }
+

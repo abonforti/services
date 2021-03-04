@@ -3706,6 +3706,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 	else {
 
 		FILE *mailfile;
+		unsigned long int randID;
 
 		if (data->operMatch) {
 
@@ -3723,6 +3724,13 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 		}
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_SENDPASS_PASSWORD_SENT, ni->nick, ni->email);
+
+    /* Change the password to a random one. */
+		srand(randomseed());
+		randID = (NOW + getrandom(1, 99999) * getrandom(1, 9999));
+
+    /* Change the channel password to the new (random) one. */
+		snprintf(ni->pass, sizeof(ni->pass), "%s-%lu", CRYPT_NETNAME, randID);
 
 		if (IS_NOT_NULL(mailfile = fopen("sendpass.txt", "w"))) {
 
@@ -5890,3 +5898,4 @@ unsigned long nickserv_mem_report(CSTR sourceNick, const User *callerUser) {
 
 	return total_mem;
 }
+

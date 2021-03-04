@@ -391,9 +391,10 @@ STR	str_toupper(STR string) {
 	CHAR	*ptr = string;
 
 	if (IS_NOT_NULL(ptr))
-		while (*ptr)
-			*ptr++ = str_char_toupper(*ptr);
+		while (*ptr) {
+			*ptr = str_char_toupper(*ptr);
 			ptr++;
+		}
 	return string;
 }
 
@@ -402,9 +403,10 @@ STR	str_tolower(STR string) {
 	CHAR	*ptr = string;
 
 	if (IS_NOT_NULL(ptr))
-		while (*ptr)
-			*ptr++ = str_char_tolower(*ptr);
+		while (*ptr) {
+			*ptr = str_char_tolower(*ptr);
 			ptr++;
+		}
 	return string;
 }
 

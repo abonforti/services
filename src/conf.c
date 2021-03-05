@@ -217,6 +217,8 @@ float CONF_AKILL_PERCENT = 50.0;
 /* Default AutoKill duration, in seconds. */
 time_t CONF_DEFAULT_AKILL_EXPIRY = 3 * ONE_HOUR;
 
+/* Password salt. */
+char *CONF_PASSWORD_SALT = NULL;
 
 static void conf_break(int ac, char **av, BOOL rehash) {
 
@@ -989,6 +991,12 @@ static void conf_break(int ac, char **av, BOOL rehash) {
 			else
 				CONF_DEFAULT_AKILL_EXPIRY = value;
 		}
+        else if (str_equals_nocase(av[0], "PASSWORD_SALT")) {
+
+          if (CONF_PASSWORD_SALT)
+            mem_free(CONF_PASSWORD_SALT);
+          CONF_PASSWORD_SALT = str_duplicate(av[1]);
+        }
 		else {
 
 			if (rehash)
@@ -1353,7 +1361,10 @@ void init_conf(BOOL rehash) {
 		if (IS_NULL(CONF_SENDMAIL_PATH))
 			CONF_SENDMAIL_PATH = str_duplicate("/usr/sbin/sendmail");
 
-		if (s_DebugServ[0] == c_NULL)
+        if (IS_NULL(CONF_PASSWORD_SALT))
+            CONF_PASSWORD_SALT = str_duplicate("");
+
+      if (s_DebugServ[0] == c_NULL)
 			str_copy_checked("DebugServ", s_DebugServ, sizeof(s_DebugServ));
 
 		if (s_NickServ[0] == c_NULL)

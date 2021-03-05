@@ -1445,7 +1445,7 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 		TRACE_MAIN();
 		++ns_regCount;
 
-		str_copy_checked(pass, callerUser->ni->pass, PASSMAX);
+		str_copy_checked(crypt_password(pass), callerUser->ni->pass, PASSMAX);
 
 		if (!user_is_identified_to(callerUser, source)) {
 
@@ -1651,7 +1651,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FORBIDDEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
 	}
-	else if (str_not_equals(pass, ni->pass)) {
+	else if (!verify_password(pass, ni->pass)) {
 
 		TRACE_MAIN();
 		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : pass);
@@ -2105,6 +2105,8 @@ static void do_set(CSTR source, User *callerUser, ServiceCommandData *data) {
 static void do_set_password(User *callerUser, CSTR param) {
 
 	char	*newpass;
+	char	*crypted_newpass;
+	char	*crypted_oldpass;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_SET_PASSWORD);
@@ -2112,6 +2114,8 @@ static void do_set_password(User *callerUser, CSTR param) {
 	if (param && IS_NOT_NULL(newpass = strchr(param, ' '))) {
 
 		*newpass++ = '\0';
+
+		crypted_newpass = crypt_password(newpass);
 
 		if (strchr(newpass, ' '))
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_WITH_SPACES);
@@ -2122,7 +2126,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 		else if (str_len(newpass) > PASSMAX)
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_MAX_LENGTH, PASSMAX);
 
-		else if (str_equals(callerUser->ni->pass, newpass))
+		else if (str_equals(crypted_newpass, callerUser->ni->pass))
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_SAME_PASSWORD);
 
 		else if (string_has_ccodes(newpass))
@@ -2131,23 +2135,24 @@ static void do_set_password(User *callerUser, CSTR param) {
 		else {
 
 			/* "param" holds the old password. */
+			crypted_oldpass = crypt_password(param);
 
-			if (str_equals(param, callerUser->ni->pass)) {
+			if (str_equals(crypted_oldpass, callerUser->ni->pass)) {
 
-				if (str_not_equals(param, newpass)) {
+				if (str_not_equals(crypted_oldpass, crypted_newpass)) {
 
 					TRACE_MAIN();
 
 					if (CONF_SET_EXTRASNOOP && !user_is_ircop(callerUser))
-						LOG_SNOOP(s_OperServ, "NS P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, newpass);
+						LOG_SNOOP(s_OperServ, "NS P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, crypted_newpass);
 					else
 						LOG_SNOOP(s_OperServ, "NS P %s -- by %s (%s@%s) [Logged]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host);
 
-					log_services(LOG_SERVICES_NICKSERV_GENERAL, "P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, newpass);
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, crypted_newpass);
 
-					send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_PASSWORD_CHANGED, callerUser->ni->nick, newpass);
+					send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_PASSWORD_CHANGED, callerUser->ni->nick, crypted_newpass);
 
-					str_copy_checked(newpass, callerUser->ni->pass, PASSMAX);
+					str_copy_checked(crypted_newpass, callerUser->ni->pass, PASSMAX);
 
 					user_remove_id(callerUser->nick, FALSE);
 
@@ -2161,8 +2166,8 @@ static void do_set_password(User *callerUser, CSTR param) {
 			else {
 
 				TRACE_MAIN();
-				LOG_SNOOP(s_OperServ, "NS *P %s -- by %s (%s@%s) [Wrong Old Pass: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, param);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "*P %s -- by %s (%s@%s) [Old Pass: %s - Given: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, param);
+				LOG_SNOOP(s_OperServ, "NS *P %s -- by %s (%s@%s) [Wrong Old Pass: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, crypted_oldpass);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "*P %s -- by %s (%s@%s) [Old Pass: %s - Given: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, crypted_oldpass);
 
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_ERROR_WRONG_OLD_PASS, callerUser->ni->nick);
 
@@ -3205,7 +3210,7 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 
 static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *nick, *pass;
+	const char *nick, *pass, *crypted_pass;
 	User *user;
 	NickInfo *ni;
 
@@ -3242,44 +3247,47 @@ static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) 
 	else if (str_equals_nocase(nick, source))
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RECOVER_ERROR_CANT_RECOVER_SELF);
 
-	else if (str_equals(pass, ni->pass)) {
-
-		TRACE_MAIN();
-		if (FlagSet(ni->flags, NI_ENFORCED))
-			release(ni, FALSE);
-		else
-			collide(ni, FALSE);
-
-		TRACE_MAIN();
-		if (!user_is_identified_to(callerUser, ni->nick)) {
-
-			++(callerUser->idcount);
-			callerUser->id_nicks = mem_realloc(callerUser->id_nicks, sizeof(char *) * callerUser->idcount);
-			callerUser->id_nicks[callerUser->idcount - 1] = str_duplicate(ni->nick);
-		}
-
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RECOVER_NICK_RECOVERED, ni->nick);
-
-//		Bahamut currently dislikes this.
-//		send_SVSNICK(source, ni->nick);
-
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-	}
 	else {
+		crypted_pass = crypt_password(pass);
+		if (str_equals(crypted_pass, ni->pass)) {
 
-		TRACE_MAIN();
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
+			TRACE_MAIN();
+			if (FlagSet(ni->flags, NI_ENFORCED))
+				release(ni, FALSE);
+			else
+				collide(ni, FALSE);
 
-		TRACE_MAIN();
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS *Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
+			TRACE_MAIN();
+			if (!user_is_identified_to(callerUser, ni->nick)) {
 
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
+				++(callerUser->idcount);
+				callerUser->id_nicks = mem_realloc(callerUser->id_nicks, sizeof(char *) * callerUser->idcount);
+				callerUser->id_nicks[callerUser->idcount - 1] = str_duplicate(ni->nick);
+			}
 
-		update_invalid_password_count(callerUser, s_NickServ, nick);
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RECOVER_NICK_RECOVERED, ni->nick);
+
+			//		Bahamut currently dislikes this.
+			//		send_SVSNICK(source, ni->nick);
+
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+		}
+		else {
+
+			TRACE_MAIN();
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
+
+			TRACE_MAIN();
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS *Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+
+			update_invalid_password_count(callerUser, s_NickServ, nick);
+		}
 	}
 }
 
@@ -3287,7 +3295,7 @@ static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *nick, *pass;
+	const char *nick, *pass, *crypted_pass;
 	NickInfo *ni;
 
 
@@ -3320,29 +3328,32 @@ static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FORBIDDEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
 	}
-	else if (str_equals(pass, ni->pass)) {
-
-		TRACE_MAIN();
-		release(ni, FALSE);
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RELEASE_NICK_RELEASED, ni->nick);
-
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-	}
 	else {
+		crypted_pass = crypt_password(pass);
+		if (str_equals(crypted_pass, ni->pass)) {
 
-		TRACE_MAIN();
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
+			TRACE_MAIN();
+			release(ni, FALSE);
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RELEASE_NICK_RELEASED, ni->nick);
 
-		TRACE_MAIN();
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS *Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
 
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+		}
+		else {
 
-		update_invalid_password_count(callerUser, s_NickServ, nick);
+			TRACE_MAIN();
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
+
+			TRACE_MAIN();
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS *Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+
+			update_invalid_password_count(callerUser, s_NickServ, nick);
+		}
 	}
 }
 
@@ -3350,7 +3361,7 @@ static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 static void do_ghost(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *nick, *pass;
+	const char *nick, *pass, *crypted_pass;
 	User *user;
 	NickInfo *ni;
 
@@ -3390,38 +3401,41 @@ static void do_ghost(CSTR source, User *callerUser, ServiceCommandData *data) {
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FROZEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
 	}
-	else if (str_equals(pass, ni->pass)) {
+	else {
+		crypted_pass = crypt_password(pass);
+		if (str_equals(crypted_pass, ni->pass)) {
 
-		TRACE_MAIN();
-		if (FlagSet(ni->flags, NI_ENFORCED))
-			release(ni, FALSE);
+			TRACE_MAIN();
+			if (FlagSet(ni->flags, NI_ENFORCED))
+				release(ni, FALSE);
 
+			else {
+
+				char reason[IRCBUFSIZE];
+
+				snprintf(reason, sizeof(reason), lang_msg(user->current_lang, NS_GHOST_KILL_REASON), source);
+				send_KILL(s_NickServ, nick, reason, TRUE);
+			}
+
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_GHOST_NICK_GHOSTED);
+
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+		}
 		else {
 
-			char reason[IRCBUFSIZE];
+			TRACE_MAIN();
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
 
-			snprintf(reason, sizeof(reason), lang_msg(user->current_lang, NS_GHOST_KILL_REASON), source);
-			send_KILL(s_NickServ, nick, reason, TRUE);
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS *K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+
+			update_invalid_password_count(callerUser, s_NickServ, nick);
 		}
-
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_GHOST_NICK_GHOSTED);
-
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-	}
-	else {
-
-		TRACE_MAIN();
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
-
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS *K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "*K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-
-		update_invalid_password_count(callerUser, s_NickServ, nick);
 	}
 }
 
@@ -3653,7 +3667,7 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 
 static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *nick;
+	const char *nick, *crypted_pass, *plain_pass;
 	NickInfo *ni;
 
 
@@ -3725,12 +3739,16 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_SENDPASS_PASSWORD_SENT, ni->nick, ni->email);
 
-    /* Change the password to a random one. */
+    	/* Change the password to a random one. */
 		srand(randomseed());
 		randID = (NOW + getrandom(1, 99999) * getrandom(1, 9999));
 
-    /* Change the nick password to the new (random) one. */
+    	/* Change the nick password to the new (random) one. */
 		snprintf(ni->pass, sizeof(ni->pass), "%s-%lu", CRYPT_NETNAME, randID);
+		plain_pass = str_duplicate(ni->pass);
+		crypted_pass = crypt_password(ni->pass);
+
+		str_copy_checked(crypted_pass, ni->pass, PASSMAX);
 
 		if (IS_NOT_NULL(mailfile = fopen("sendpass.txt", "w"))) {
 
@@ -3742,7 +3760,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 			lang_format_localtime(timebuf, sizeof(timebuf), GetCallerLang(), TIME_FORMAT_DATETIME, NOW);
 
 			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_SUBJECT), ni->nick);
-			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_TEXT), data->operName, timebuf, ni->nick, ni->pass);
+			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_TEXT), data->operName, timebuf, ni->nick, plain_pass);
 			fprintf(mailfile, lang_msg(GetNickLang(ni), CSNS_EMAIL_TEXT_ABUSE), MAIL_ABUSE, CONF_NETWORK_NAME);
 			fclose(mailfile);
 
@@ -5339,7 +5357,7 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 	if (str_equals_nocase(what, "PASS")) {
 
-		const char *newpass;
+		const char *newpass, *crypted_newpass;
 
 		if (IS_NULL(newpass = strtok(NULL, " "))) {
 
@@ -5359,29 +5377,30 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_AS_PASS);
 
 		else {
+			crypted_newpass = crypt_password(crypted_newpass);
 
-			if (str_not_equals(ni->pass, newpass)) {
+			if (str_not_equals(crypted_newpass, ni->pass)) {
 
 				TRACE_MAIN();
 
 				if (data->operMatch) {
 
-					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass, newpass);
-					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass, newpass);
+					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass, crypted_newpass);
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass, crypted_newpass);
 
 					send_globops(s_NickServ, "\2%s\2 changed nick password for \2%s\2", callerUser->nick, ni->nick);
 				}
 				else {
 
-					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass, newpass);
-					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass, newpass);
+					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass, crypted_newpass);
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass, crypted_newpass);
 
 					send_globops(s_NickServ, "\2%s\2 (through \2%s\2) changed nick password for \2%s\2", callerUser->nick, data->operName, ni->nick);
 				}
 
 				send_notice_to_user(s_NickServ, callerUser, "Password for \2%s\2 set to: %s", ni->nick, newpass);
 
-				str_copy_checked(newpass, ni->pass, PASSMAX);
+				str_copy_checked(crypted_newpass, ni->pass, PASSMAX);
 
 				user_remove_id(nick, FALSE);
 			}

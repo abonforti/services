@@ -1839,9 +1839,9 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		}
 
 		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : pass);
+			LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));
 
-		log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, pass);
+		log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, password_to_hex(crypt_password(pass)));
 
 		if (modeIdx > 1) {
 
@@ -5381,7 +5381,7 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 		else {
 			crypted_newpass = crypt_password(newpass);
 
-			if (verify_hashed_password(crypted_newpass, ni->pass)) {
+			if (!verify_hashed_password(crypted_newpass, ni->pass)) {
 
 				TRACE_MAIN();
 

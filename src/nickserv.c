@@ -5402,7 +5402,7 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 				send_notice_to_user(s_NickServ, callerUser, "Password for \2%s\2 set to: %s", ni->nick, newpass);
 
-				set_hashed_password(callerUser->ni->pass, crypted_newpass);
+				set_hashed_password(ni->pass, crypted_newpass);
 
 				user_remove_id(nick, FALSE);
 			}

@@ -1349,7 +1349,8 @@ void nickserv_update_news(const LANG_ID lang_id) {
 /* Register a nick. */
 static void do_register(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *pass, *email, *crypted_password;
+	const char *pass, *email;
+	char *crypted_password;
 	RESERVED_RESULT reserved;
 
 
@@ -1652,7 +1653,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FORBIDDEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
 	}
-	else if (!verify_password(pass, ni->pass)) {
+	else if (!verify_hashed_password(crypt_password(pass), ni->pass)) {
 
 		TRACE_MAIN();
 		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));
@@ -2127,7 +2128,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 		else if (str_len(newpass) > PASSMAX)
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_MAX_LENGTH, PASSMAX);
 
-		else if (crypted_newpass == callerUser->ni->pass)
+		else if (verify_hashed_password(crypted_newpass, callerUser->ni->pass))
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_SAME_PASSWORD);
 
 		else if (string_has_ccodes(newpass))
@@ -2138,9 +2139,9 @@ static void do_set_password(User *callerUser, CSTR param) {
 			/* "param" holds the old password. */
 			crypted_oldpass = crypt_password(param);
 
-			if (crypted_oldpass == callerUser->ni->pass) {
+			if (verify_hashed_password(crypted_oldpass, callerUser->ni->pass)) {
 
-				if (str_not_equals(crypted_oldpass, crypted_newpass)) {
+				if (!verify_hashed_password(crypted_oldpass, crypted_newpass)) {
 
 					TRACE_MAIN();
 
@@ -3250,7 +3251,7 @@ static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 	else {
 		crypted_pass = crypt_password(pass);
-		if (crypted_pass == ni->pass) {
+		if (verify_hashed_password(crypted_pass, ni->pass)) {
 
 			TRACE_MAIN();
 			if (FlagSet(ni->flags, NI_ENFORCED))
@@ -3331,7 +3332,7 @@ static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) 
 	}
 	else {
 		crypted_pass = crypt_password(pass);
-		if (crypted_pass == ni->pass) {
+		if (verify_hashed_password(crypted_pass, ni->pass)) {
 
 			TRACE_MAIN();
 			release(ni, FALSE);
@@ -3404,7 +3405,7 @@ static void do_ghost(CSTR source, User *callerUser, ServiceCommandData *data) {
 	}
 	else {
 		crypted_pass = crypt_password(pass);
-		if (crypted_pass == ni->pass) {
+		if (verify_hashed_password(crypted_pass, ni->pass)) {
 
 			TRACE_MAIN();
 			if (FlagSet(ni->flags, NI_ENFORCED))
@@ -5380,7 +5381,7 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 		else {
 			crypted_newpass = crypt_password(crypted_newpass);
 
-			if (crypted_newpass == ni->pass) {
+			if (verify_hashed_password(crypted_newpass, ni->pass)) {
 
 				TRACE_MAIN();
 

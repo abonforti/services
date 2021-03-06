@@ -19,7 +19,7 @@
 
 extern STR password_to_hex(CSTR input);
 extern STR crypt_password(CSTR input);
-extern BOOL verify_password(CSTR input, CSTR stored_value);
+extern BOOL verify_hashed_password(CSTR input, CSTR stored_value);
 extern void set_hashed_password(STR destination, CSTR hashed_password);
 
 #endif //SERVICES_CRYPT_PASS_H

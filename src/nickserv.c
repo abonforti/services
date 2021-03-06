@@ -3432,9 +3432,9 @@ static void do_ghost(CSTR source, User *callerUser, ServiceCommandData *data) {
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
 
 			if (CONF_SET_EXTRASNOOP)
-				LOG_SNOOP(s_OperServ, "NS *K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+				LOG_SNOOP(s_OperServ, "NS *K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 
-			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 
 			update_invalid_password_count(callerUser, s_NickServ, nick);
 		}

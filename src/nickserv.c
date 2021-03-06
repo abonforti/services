@@ -36,7 +36,7 @@
 #include "../inc/nickserv.h"
 #include "../inc/reserved.h"
 #include "../inc/blacklist.h"
-
+#include "../inc/crypt_pass.h"
 
 /*********************************************************
  * Global variables                                      *

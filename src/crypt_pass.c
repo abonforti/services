@@ -63,7 +63,7 @@ STR crypt_password(CSTR input) {
 
 	crypt_sha256(hash, s, str_len(s));
 
-	return (char *)buffer;
+	return (char *)hash;
 }
 
 BOOL verify_password(CSTR input, CSTR stored_value) {

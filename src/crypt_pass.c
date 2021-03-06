@@ -34,8 +34,9 @@
  * Hash passwords functions                              *
  *********************************************************/
 
-STR crypt_password(const void *input) {
+STR crypt_password(char *input) {
 	const char xx[]= "0123456789ABCDEF";
+        int n = PASSSIZE;
 	char *buffer;
 	uint8_t hash[32];
 	CSTR s = str_merge(CONF_PASSWORD_SALT, input);
@@ -55,8 +56,8 @@ STR crypt_password(const void *input) {
 	return buffer;
 }
 
-BOOL verify_password(const void *input, const void *stored_value);
-	if (str_equals(stored, crypt_password(input)) {
+BOOL verify_password(char *input, char *stored_value) {
+	if (str_equals(stored_value, crypt_password(input))) {
 		return TRUE;
 	}
 

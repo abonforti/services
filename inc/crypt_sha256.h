@@ -13,6 +13,10 @@
 #ifndef SERVICES_CRYPT_SHA256_H
 #define SERVICES_CRYPT_SHA256_H
 
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+
 /*********************************************************
  * Public code                                           *
  *********************************************************/

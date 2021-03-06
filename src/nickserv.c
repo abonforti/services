@@ -1445,7 +1445,7 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 		TRACE_MAIN();
 		++ns_regCount;
 
-		memcpy(callerUser->ni->pass, crypt_password(pass), PASSMAX);
+		set_hashed_password(callerUser->ni->pass, crypt_password(pass));
 
 		if (!user_is_identified_to(callerUser, source)) {
 
@@ -2152,7 +2152,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 
 					send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_PASSWORD_CHANGED, callerUser->ni->nick, password_to_hex(crypted_newpass));
 
-					memcpy(callerUser->ni->pass, crypted_newpass, PASSMAX);
+					set_hashed_password(callerUser->ni->pass, crypted_newpass);
 
 					user_remove_id(callerUser->nick, FALSE);
 
@@ -3748,7 +3748,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 		plain_pass = str_duplicate(ni->pass);
 		crypted_pass = crypt_password(ni->pass);
 
-		memcpy(ni->pass, crypted_pass, PASSMAX);
+		set_hashed_password(callerUser->ni->pass, crypted_pass);
 
 		if (IS_NOT_NULL(mailfile = fopen("sendpass.txt", "w"))) {
 
@@ -5400,7 +5400,7 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 				send_notice_to_user(s_NickServ, callerUser, "Password for \2%s\2 set to: %s", ni->nick, newpass);
 
-				memcpy(ni->pass, crypted_newpass, PASSMAX);
+				set_hashed_password(callerUser->ni->pass, crypted_newpass);
 
 				user_remove_id(nick, FALSE);
 			}

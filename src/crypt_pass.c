@@ -36,13 +36,12 @@
 
 STR password_to_hex(CSTR input)
 {
-	unsigned char     hex_str[]= "0123456789abcdef";
-	unsigned int      i;
-	unsigned char     **result;
-	unsigned int      size;
+	int      i, size;
+	char     hex_str[]= "0123456789abcdef";
+	char     **result;
 
 	size = str_len(input);
-	if (!(result = (unsigned char *)malloc(size * 2 + 1)))
+	if (!(result = (char **)malloc(size * 2 + 1)))
 		return (NULL);
 
 	(*result)[size * 2] = 0;
@@ -59,23 +58,16 @@ STR password_to_hex(CSTR input)
 }
 
 STR crypt_password(CSTR input) {
-	char *buffer;
 	uint8_t hash[32];
 	CSTR s = str_merge(CONF_PASSWORD_SALT, input);
 
 	crypt_sha256(hash, s, str_len(s));
 
-	buffer = mem_malloc((PASSSIZE) * sizeof(char));
-	if (buffer == NULL)
-		return NULL;
-
-	str_copy_checked((char *) hash, buffer, sizeof(buffer));
-
-	return buffer;
+	return (char *)buffer;
 }
 
 BOOL verify_password(CSTR input, CSTR stored_value) {
-	if (str_equals(stored_value, crypt_password(input))) {
+	if (stored_value == crypt_password(input)) {
 		return TRUE;
 	}
 

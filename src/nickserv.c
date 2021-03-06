@@ -1445,7 +1445,7 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 		TRACE_MAIN();
 		++ns_regCount;
 
-		str_copy_checked(crypt_password(pass), callerUser->ni->pass, PASSMAX);
+		memcpy(callerUser->ni->pass, crypt_password(pass), PASSMAX);
 
 		if (!user_is_identified_to(callerUser, source)) {
 
@@ -2126,7 +2126,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 		else if (str_len(newpass) > PASSMAX)
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_MAX_LENGTH, PASSMAX);
 
-		else if (str_equals(crypted_newpass, callerUser->ni->pass))
+		else if (crypted_newpass == callerUser->ni->pass))
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_SAME_PASSWORD);
 
 		else if (string_has_ccodes(newpass))
@@ -2137,7 +2137,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 			/* "param" holds the old password. */
 			crypted_oldpass = crypt_password(param);
 
-			if (str_equals(crypted_oldpass, callerUser->ni->pass)) {
+			if (crypted_oldpass == callerUser->ni->pass) {
 
 				if (str_not_equals(crypted_oldpass, crypted_newpass)) {
 
@@ -2152,7 +2152,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 
 					send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_PASSWORD_CHANGED, callerUser->ni->nick, password_to_hex(crypted_newpass));
 
-					str_copy_checked(crypted_newpass, callerUser->ni->pass, PASSMAX);
+					memcpy(callerUser->ni->pass, crypted_newpass, PASSMAX);
 
 					user_remove_id(callerUser->nick, FALSE);
 
@@ -3249,7 +3249,7 @@ static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 	else {
 		crypted_pass = crypt_password(pass);
-		if (str_equals(crypted_pass, ni->pass)) {
+		if (crypted_pass == ni->pass) {
 
 			TRACE_MAIN();
 			if (FlagSet(ni->flags, NI_ENFORCED))
@@ -3330,7 +3330,7 @@ static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) 
 	}
 	else {
 		crypted_pass = crypt_password(pass);
-		if (str_equals(crypted_pass, ni->pass)) {
+		if (crypted_pass == ni->pass) {
 
 			TRACE_MAIN();
 			release(ni, FALSE);
@@ -3403,7 +3403,7 @@ static void do_ghost(CSTR source, User *callerUser, ServiceCommandData *data) {
 	}
 	else {
 		crypted_pass = crypt_password(pass);
-		if (str_equals(crypted_pass, ni->pass)) {
+		if (crypted_pass == ni->pass) {
 
 			TRACE_MAIN();
 			if (FlagSet(ni->flags, NI_ENFORCED))
@@ -3748,7 +3748,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 		plain_pass = str_duplicate(ni->pass);
 		crypted_pass = crypt_password(ni->pass);
 
-		str_copy_checked(crypted_pass, ni->pass, PASSMAX);
+		memcpy(ni->pass, crypted_pass, PASSMAX);
 
 		if (IS_NOT_NULL(mailfile = fopen("sendpass.txt", "w"))) {
 
@@ -5379,7 +5379,7 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 		else {
 			crypted_newpass = crypt_password(crypted_newpass);
 
-			if (str_not_equals(crypted_newpass, ni->pass)) {
+			if (crypted_newpass == ni->pass) {
 
 				TRACE_MAIN();
 
@@ -5400,7 +5400,7 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 				send_notice_to_user(s_NickServ, callerUser, "Password for \2%s\2 set to: %s", ni->nick, newpass);
 
-				str_copy_checked(crypted_newpass, ni->pass, PASSMAX);
+				memcpy(ni->pass, crypted_newpass, PASSMAX);
 
 				user_remove_id(nick, FALSE);
 			}

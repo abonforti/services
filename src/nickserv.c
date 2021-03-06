@@ -5379,7 +5379,7 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_AS_PASS);
 
 		else {
-			crypted_newpass = crypt_password(crypted_newpass);
+			crypted_newpass = crypt_password(newpass);
 
 			if (verify_hashed_password(crypted_newpass, ni->pass)) {
 

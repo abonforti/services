@@ -35,11 +35,14 @@
  *********************************************************/
 
 STR password_to_hex(char *input) {
+	char *buffer;
 	const char xx[]= "0123456789ABCDEF";
 	int n = PASSSIZE;
 
+	buffer = mem_malloc((PASSSIZE) * sizeof(char));
+
 	while (--n >= 0) {
-		buffer[n] = xx[(hash[n >> 1] >> ((1 - (n & 1)) << 2)) & 0xF];
+		buffer[n] = xx[(input[n >> 1] >> ((1 - (n & 1)) << 2)) & 0xF];
 	}
 
 	buffer[n] = '\0';

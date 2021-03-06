@@ -75,15 +75,10 @@ BOOL verify_password(CSTR input, CSTR stored_value) {
 }
 
 void set_hashed_password(STR destination, CSTR hashed_password) {
-	size_t len = 0;
-	size_t dest_len = sizeof(destination);
+	size_t dest_len = PASSHASHSIZE;
 
-	if ((dest_len > 0) && IS_NOT_NULL(hashed_password) && IS_NOT_NULL(hashed_password)) {
-
-		STR ptr = hashed_password;
-
-		while ( (--dest_len > 0) && ((*ptr++ = *hashed_password++)) )
-			++len;
-
+	if (IS_NOT_NULL(destination) && IS_NOT_NULL(hashed_password)) {
+		STR ptr = destination;
+		while ( (--dest_len > 0) && ((*ptr++ = *hashed_password++)) );
 	}
 }

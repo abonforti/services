@@ -1349,7 +1349,7 @@ void nickserv_update_news(const LANG_ID lang_id) {
 /* Register a nick. */
 static void do_register(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *pass, *email;
+	const char *pass, *email, *crypted_password;
 	RESERVED_RESULT reserved;
 
 
@@ -1445,7 +1445,8 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 		TRACE_MAIN();
 		++ns_regCount;
 
-		set_hashed_password(callerUser->ni->pass, crypt_password(pass));
+		crypted_password = crypt_password(pass);
+		set_hashed_password(callerUser->ni->pass, crypted_password);
 
 		if (!user_is_identified_to(callerUser, source)) {
 

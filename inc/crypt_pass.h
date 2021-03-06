@@ -17,8 +17,8 @@
  * Public code                                           *
  *********************************************************/
 
-extern STR password_to_hex(char *input);
-extern STR crypt_password(char *input);
-extern BOOL verify_password(char *input, char *stored_value);
+extern STR password_to_hex(CSTR input);
+extern STR crypt_password(CSTR input);
+extern BOOL verify_password(CSTR input, CSTR stored_value);
 
 #endif //SERVICES_CRYPT_PASS_H

@@ -34,39 +34,47 @@
  * Hash passwords functions                              *
  *********************************************************/
 
-STR password_to_hex(char *input) {
-	char *buffer;
-	const char xx[]= "0123456789ABCDEF";
-	int n = PASSSIZE;
+STR password_to_hex(CSTR input)
+{
+	unsigned char     hex_str[]= "0123456789abcdef";
+	unsigned int      i;
+	unsigned char     **result;
+	unsigned int      size;
 
-	buffer = mem_malloc((PASSSIZE) * sizeof(char));
+	size = str_len(input);
+	if (!(result = (unsigned char *)malloc(size * 2 + 1)))
+		return (NULL);
 
-	while (--n >= 0) {
-		buffer[n] = xx[(input[n >> 1] >> ((1 - (n & 1)) << 2)) & 0xF];
+	(*result)[size * 2] = 0;
+
+	if (!size)
+		return (NULL);
+
+	for (i = 0; i < size; i++)
+	{
+		(*result)[i * 2 + 0] = hex_str[(input[i] >> 4) & 0x0F];
+		(*result)[i * 2 + 1] = hex_str[(input[i]     ) & 0x0F];
 	}
-
-	buffer[n] = '\0';
-
-	return buffer;
+	return (*result);
 }
 
-STR crypt_password(char *input) {
+STR crypt_password(CSTR input) {
 	char *buffer;
 	uint8_t hash[32];
 	CSTR s = str_merge(CONF_PASSWORD_SALT, input);
 
-	crypt_sha256(hash, s, str_len(input));
+	crypt_sha256(hash, s, str_len(s));
 
 	buffer = mem_malloc((PASSSIZE) * sizeof(char));
 	if (buffer == NULL)
 		return NULL;
 
-	str_copy_checked((char *) hash, buffer, 32 + 1);
+	str_copy_checked((char *) hash, buffer, sizeof(buffer));
 
 	return buffer;
 }
 
-BOOL verify_password(char *input, char *stored_value) {
+BOOL verify_password(CSTR input, CSTR stored_value) {
 	if (str_equals(stored_value, crypt_password(input))) {
 		return TRUE;
 	}

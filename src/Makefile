@@ -2,15 +2,17 @@
 
 include ../Makefile.inc
 
-OBJS =	access.o akill.o blacklist.o channels.o chanserv.o compat.o conf.o cidr.o crypt_shs1.o crypt_userhost.o \
-	datafiles.o debugserv.o helpserv.o ignore.o jupe.o lang.o logging.o main.o memory.o memoserv.o messages.o misc.o \
-	mtab.o nickserv.o oper.o operserv.o process.o regions.o reserved.o rootserv.o send.o servers.o signals.o \
-	sockutil.o spam.o storage.o strings.o sxline.o tagline.o timeout.o trie.o trigger.o users.o version.o
+OBJS =	access.o akill.o blacklist.o channels.o chanserv.o compat.o conf.o cidr.o crypt_shs1.o crypt_sha256.o \
+    crypt_pass.o crypt_userhost.o datafiles.o debugserv.o helpserv.o ignore.o jupe.o lang.o logging.o main.o \
+    memory.o memoserv.o messages.o misc.o mtab.o nickserv.o oper.o operserv.o process.o regions.o reserved.o \
+    rootserv.o send.o servers.o signals.o sockutil.o spam.o storage.o strings.o sxline.o tagline.o timeout.o trie.o \
+    trigger.o users.o version.o
 
-SRCS =	access.c akill.c blacklist.c channels.c chanserv.c compat.c conf.c cidr.c crypt_shs1.c crypt_userhost.c \
-	datafiles.c debugserv.c helpserv.c ignore.c jupe.c lang.c logging.c main.c memory.c memoserv.c messages.c misc.c \
-	mtab.c nickserv.c oper.c operserv.c process.c regions.c reserved.c rootserv.c send.c servers.c signals.c \
-	sockutil.c spam.c storage.c strings.c sxline.c tagline.c timeout.c trie.c trigger.c users.c version.c
+SRCS =	access.c akill.c blacklist.c channels.c chanserv.c compat.c conf.c cidr.c crypt_shs1.c crypt_sha256.c \
+    crypt_pass.c crypt_userhost.c datafiles.c debugserv.c helpserv.c ignore.c jupe.c lang.c logging.c main.c memory.c \
+    memoserv.c messages.c misc.c mtab.c nickserv.c oper.c operserv.c process.c regions.c reserved.c rootserv.c send.c \
+    servers.c signals.c sockutil.c spam.c storage.c strings.c sxline.c tagline.c timeout.c trie.c trigger.c users.c \
+    version.c
 
 build: services
 
@@ -33,6 +35,8 @@ compat.o:			compat.c
 cidr.o:				cidr.c				../inc/cidr.h
 conf.o:				conf.c
 crypt_shs1.o:			crypt_shs1.c 			../inc/crypt_shs1.h
+crypt_sha256.o:			crypt_sha256.c 			../inc/crypt_sha256.h
+crypt_pass.o:			crypt_pass.c 			../inc/crypt_pass.h
 crypt_userhost.o:		crypt_userhost.c		../inc/crypt_shs1.h
 datafiles.o:			datafiles.c
 debugserv.o: 			debugserv.c 			../inc/lang.h ../inc/options.h

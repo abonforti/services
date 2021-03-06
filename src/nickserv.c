@@ -2126,7 +2126,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 		else if (str_len(newpass) > PASSMAX)
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_MAX_LENGTH, PASSMAX);
 
-		else if (crypted_newpass == callerUser->ni->pass))
+		else if (crypted_newpass == callerUser->ni->pass)
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_SAME_PASSWORD);
 
 		else if (string_has_ccodes(newpass))

@@ -17,6 +17,7 @@
  * Public code                                           *
  *********************************************************/
 
+extern STR password_to_hex(char *input);
 extern STR crypt_password(char *input);
 extern BOOL verify_password(char *input, char *stored_value);
 

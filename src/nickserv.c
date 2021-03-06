@@ -1486,7 +1486,7 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 		clear_memos(callerUser->ni->nick);
 
 		LOG_SNOOP(s_OperServ, "NS R %s -- by %s (%s@%s) [E: %s]", source, source, callerUser->username, callerUser->host, callerUser->ni->email);
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "R %s -- by %s (%s@%s) [E: %s] [P: %s]", source, source, callerUser->username, callerUser->host, callerUser->ni->email, callerUser->ni->pass);
+		log_services(LOG_SERVICES_NICKSERV_GENERAL, "R %s -- by %s (%s@%s) [E: %s] [P: %s]", source, source, callerUser->username, callerUser->host, callerUser->ni->email, password_to_hex(callerUser->ni->pass));
 
 		if (CONF_USE_EMAIL) {
 
@@ -1654,8 +1654,8 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 	else if (!verify_password(pass, ni->pass)) {
 
 		TRACE_MAIN();
-		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : pass);
-		log_services(LOG_SERVICES_NICKSERV_ID, "*I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
+		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));
+		log_services(LOG_SERVICES_NICKSERV_ID, "*I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypt_password(pass)));
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, nick);
 
@@ -2144,13 +2144,13 @@ static void do_set_password(User *callerUser, CSTR param) {
 					TRACE_MAIN();
 
 					if (CONF_SET_EXTRASNOOP && !user_is_ircop(callerUser))
-						LOG_SNOOP(s_OperServ, "NS P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, crypted_newpass);
+						LOG_SNOOP(s_OperServ, "NS P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(callerUser->ni->pass), password_to_hex(crypted_newpass));
 					else
 						LOG_SNOOP(s_OperServ, "NS P %s -- by %s (%s@%s) [Logged]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host);
 
-					log_services(LOG_SERVICES_NICKSERV_GENERAL, "P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, crypted_newpass);
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(callerUser->ni->pass), password_to_hex(crypted_newpass));
 
-					send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_PASSWORD_CHANGED, callerUser->ni->nick, crypted_newpass);
+					send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_PASSWORD_CHANGED, callerUser->ni->nick, password_to_hex(crypted_newpass));
 
 					str_copy_checked(crypted_newpass, callerUser->ni->pass, PASSMAX);
 
@@ -2167,7 +2167,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 
 				TRACE_MAIN();
 				LOG_SNOOP(s_OperServ, "NS *P %s -- by %s (%s@%s) [Wrong Old Pass: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, crypted_oldpass);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "*P %s -- by %s (%s@%s) [Old Pass: %s - Given: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, crypted_oldpass);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "*P %s -- by %s (%s@%s) [Old Pass: %s - Given: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(callerUser->ni->pass), password_to_hex(crypted_oldpass));
 
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_ERROR_WRONG_OLD_PASS, callerUser->ni->nick);
 
@@ -3271,9 +3271,9 @@ static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) 
 			//		send_SVSNICK(source, ni->nick);
 
 			if (CONF_SET_EXTRASNOOP)
-				LOG_SNOOP(s_OperServ, "NS Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+				LOG_SNOOP(s_OperServ, "NS Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 
-			log_services(LOG_SERVICES_NICKSERV_GENERAL, "Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 		}
 		else {
 
@@ -3282,9 +3282,9 @@ static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 			TRACE_MAIN();
 			if (CONF_SET_EXTRASNOOP)
-				LOG_SNOOP(s_OperServ, "NS *Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+				LOG_SNOOP(s_OperServ, "NS *Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 
-			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 
 			update_invalid_password_count(callerUser, s_NickServ, nick);
 		}
@@ -3337,9 +3337,9 @@ static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) 
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RELEASE_NICK_RELEASED, ni->nick);
 
 			if (CONF_SET_EXTRASNOOP)
-				LOG_SNOOP(s_OperServ, "NS Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+				LOG_SNOOP(s_OperServ, "NS Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 
-			log_services(LOG_SERVICES_NICKSERV_GENERAL, "Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 		}
 		else {
 
@@ -3348,9 +3348,9 @@ static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 			TRACE_MAIN();
 			if (CONF_SET_EXTRASNOOP)
-				LOG_SNOOP(s_OperServ, "NS *Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+				LOG_SNOOP(s_OperServ, "NS *Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 
-			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 
 			update_invalid_password_count(callerUser, s_NickServ, nick);
 		}
@@ -3420,9 +3420,9 @@ static void do_ghost(CSTR source, User *callerUser, ServiceCommandData *data) {
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_GHOST_NICK_GHOSTED);
 
 			if (CONF_SET_EXTRASNOOP)
-				LOG_SNOOP(s_OperServ, "NS K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+				LOG_SNOOP(s_OperServ, "NS K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 
-			log_services(LOG_SERVICES_NICKSERV_GENERAL, "K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, crypted_pass);
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 		}
 		else {
 
@@ -3866,38 +3866,38 @@ static void do_getpass(CSTR source, User *callerUser, ServiceCommandData *data) 
 			if (data->operMatch) {
 
 				LOG_SNOOP(s_OperServ, "NS G %s -- by %s (%s@%s) [SRA->MARK]", ni->nick, callerUser->nick, callerUser->username, callerUser->host);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) [SRA->MARK - Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) [SRA->MARK - Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ni->pass));
 
 				send_globops(s_NickServ, "\2%s\2 used GETPASS on MARKed nick \2%s\2", callerUser->nick, ni->nick);
 			}
 			else {
 
 				LOG_SNOOP(s_OperServ, "NS G %s -- by %s (%s@%s) through %s [SRA->MARK]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [SRA->MARK - Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [SRA->MARK - Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ni->pass));
 
 				send_globops(s_NickServ, "\2%s\2 (through \2%s\2) used GETPASS on MARKed nick \2%s\2", callerUser->nick, data->operName, ni->nick);
 			}
 
-			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ni->nick, ni->pass);
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ni->nick, password_to_hex(ni->pass));
 		}
 		else {
 
 			if (data->operMatch) {
 
 				LOG_SNOOP(s_OperServ, "NS G %s -- by %s (%s@%s)", ni->nick, callerUser->nick, callerUser->username, callerUser->host);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) [Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) [Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ni->pass));
 
 				send_globops(s_NickServ, "\2%s\2 used GETPASS on \2%s\2", source, ni->nick);
 			}
 			else {
 
 				LOG_SNOOP(s_OperServ, "NS G %s -- by %s (%s@%s) through %s", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ni->pass));
 
 				send_globops(s_NickServ, "\2%s\2 (through \2%s\2) used GETPASS on \2%s\2", source, data->operName, ni->nick);
 			}
 
-			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ni->nick, ni->pass);
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ni->nick, password_to_hex(ni->pass));
 		}
 	}
 }
@@ -5385,15 +5385,15 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 				if (data->operMatch) {
 
-					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass, crypted_newpass);
-					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass, crypted_newpass);
+					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ni->pass), password_to_hex(crypted_newpass));
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ni->pass), password_to_hex(crypted_newpass));
 
 					send_globops(s_NickServ, "\2%s\2 changed nick password for \2%s\2", callerUser->nick, ni->nick);
 				}
 				else {
 
-					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass, crypted_newpass);
-					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass, crypted_newpass);
+					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ni->pass), password_to_hex(crypted_newpass));
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ni->pass), password_to_hex(crypted_newpass));
 
 					send_globops(s_NickServ, "\2%s\2 (through \2%s\2) changed nick password for \2%s\2", callerUser->nick, data->operName, ni->nick);
 				}
@@ -5744,7 +5744,7 @@ void nickserv_ds_dump(CSTR sourceNick, const User *callerUser, STR request) {
 
 					send_notice_to_user(sourceNick, callerUser, "Address 0x%08X, size %d B",						(unsigned long)ni, sizeof(NickInfo));
 					send_notice_to_user(sourceNick, callerUser, "Name: %s",											ni->nick);
-					send_notice_to_user(sourceNick, callerUser, "Password: %s",										ni->pass);
+					send_notice_to_user(sourceNick, callerUser, "Password: %s",										password_to_hex(ni->pass));
 					send_notice_to_user(sourceNick, callerUser, "Last Mask: 0x%08X \2[\2%s\2]\2",					(unsigned long)ni->last_usermask, str_get_valid_display_value(ni->last_usermask));
 					send_notice_to_user(sourceNick, callerUser, "Last Real Name: 0x%08X \2[\2%s\2]\2",				(unsigned long)ni->last_realname, str_get_valid_display_value(ni->last_realname));
 					send_notice_to_user(sourceNick, callerUser, "Registration C-time: %d",							ni->time_registered);

@@ -34,9 +34,20 @@
  * Hash passwords functions                              *
  *********************************************************/
 
-STR crypt_password(char *input) {
+STR password_to_hex(char *input) {
 	const char xx[]= "0123456789ABCDEF";
-        int n = PASSSIZE;
+	int n = PASSSIZE;
+
+	while (--n >= 0) {
+		buffer[n] = xx[(hash[n >> 1] >> ((1 - (n & 1)) << 2)) & 0xF];
+	}
+
+	buffer[n] = '\0';
+
+	return buffer;
+}
+
+STR crypt_password(char *input) {
 	char *buffer;
 	uint8_t hash[32];
 	CSTR s = str_merge(CONF_PASSWORD_SALT, input);
@@ -47,11 +58,7 @@ STR crypt_password(char *input) {
 	if (buffer == NULL)
 		return NULL;
 
-	while (--n >= 0) {
-		buffer[n] = xx[(hash[n >> 1] >> ((1 - (n & 1)) << 2)) & 0xF];
-	}
-
-	buffer[n] = '\0';
+	str_copy_checked((char *) hash, buffer, 32 + 1);
 
 	return buffer;
 }

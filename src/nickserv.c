@@ -1702,7 +1702,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 	if (FlagSet(ni->flags, NI_PASSRESET)) {
 		TRACE_MAIN();
 
-		time_t expireTime = callerUser->ni->last_email_request + FIFTEEN_MINUTES;
+		time_t expireTime = ni->last_email_request + FIFTEEN_MINUTES;
 
 		authcode = strtoul(pass, &err, 10);
 

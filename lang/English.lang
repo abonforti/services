@@ -1855,3 +1855,5 @@ NS_SET_EMAIL_ERROR_PASSRESET_ON
 	You cannot request an E-Mail change until your password reset is completed or expired.
 NS_INFO_PASSRESET_REQUEST
 	* This nick requested a password reset.
+NS_IDENTIFY_PASSRESET_REMINDER
+	Attention: complete your password reset within %d minutes with the following command: /NS SET PASSWD %s <password-of-your-choice>

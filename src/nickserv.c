@@ -1637,7 +1637,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 
 	char		*nick, *pass;
 	NickInfo	*ni;
-	BOOL		sameNick = FALSE, freeMe = FALSE;
+	BOOL		sameNick = FALSE, freeMe = FALSE, isPassResetCodeCorrect = FALSE;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_IDENTIFY);
@@ -1693,7 +1693,28 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FORBIDDEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
 	}
-	else if (!verify_hashed_password(crypt_password(pass), ni->pass)) {
+	else if (FlagSet(ni->flags, NI_PASSRESET)) {
+		unsigned long int authcode;
+		char *err;
+		time_t expireTime = callerUser->ni->last_email_request + FIFTEEN_MINUTES;
+
+		authcode = strtoul(param, &err, 10);
+
+		if ((*err == '\0') && (authcode != 0) && (authcode == ni->auth) && NOW < expireTime) {
+			isPassResetCodeCorrect = TRUE;
+		}
+	}
+
+	if (FlagSet(ni->flags, NI_PASSRESET) && !isPassResetCodeCorrect) {
+		TRACE_MAIN();
+		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : authcode);
+		log_services(LOG_SERVICES_NICKSERV_ID, "*I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, authcode);
+
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, nick);
+
+		update_invalid_password_count(callerUser, s_NickServ, nick);
+	}
+	else if (FlagUnset(ni->flags, NI_PASSRESET) && !verify_hashed_password(crypt_password(pass), ni->pass)) {
 
 		TRACE_MAIN();
 		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));
@@ -1878,11 +1899,6 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 				break;
 		}
 
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));
-
-		log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, password_to_hex(crypt_password(pass)));
-
 		if (modeIdx > 1) {
 
 			modebuf[modeIdx] = '\0';
@@ -1890,6 +1906,23 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		}
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_ID_OK, ni->nick, accessLevel);
+
+		if (FlagSet(ni->flags, NI_PASSRESET)) {
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%lu]", nick, source, callerUser->username, callerUser->host, authcode);
+
+			log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%lu]", nick, source, callerUser->username, callerUser->host, authcode);
+
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_PASSRESET_REMINDER, 5, authcode);
+			ni->last_email_request = NOW - TEN_MINUTES;
+		}
+		else {
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));
+
+			log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, password_to_hex(crypt_password(pass)));
+		}
+
 
 		if (sameNick && FlagSet(ni->flags, NI_AUTH))
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_NOT_AUTH, ni->email);
@@ -2195,11 +2228,10 @@ static void do_set_password(User *callerUser, CSTR param) {
 				if ((*err == '\0') && (authcode != 0) && (authcode == callerUser->ni->auth) && NOW < expireTime) {
 					mem_free(crypted_oldpass);
 					crypted_oldpass = callerUser->ni->pass;
+					callerUser->ni->auth = 0;
+					callerUser->ni->last_email_request = 0;
+					RemoveFlag(callerUser->ni->flags, NI_PASSRESET);
 				}
-
-				callerUser->ni->auth = 0;
-				callerUser->ni->last_email_request = 0;
-				RemoveFlag(callerUser->ni->flags, NI_PASSRESET);
 			} else {
 				crypted_oldpass = crypt_password(param);
 			}

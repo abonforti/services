@@ -1345,9 +1345,9 @@ NS_ERROR_MUST_IDENTIFY
 NS_ERROR_NICK_ALREADY_AUTH
 	ERRORE: La registrazione del tuo nick e' gia' stata confermata.
 NS_ERROR_NICK_FORBIDDEN
-	Il nick %s e' vietato e non può essere usato ne' registrato.
+	Il nick %s e' vietato e non puï¿½ essere usato ne' registrato.
 NS_ERROR_NICK_FROZEN
-	Il nick %s e' bloccato e non può essere usato.
+	Il nick %s e' bloccato e non puï¿½ essere usato.
 NS_ERROR_NICK_NOT_IN_USE
 	Nessuno sta usando il nick %s in questo momento.
 NS_FLAG_ERROR_NICK_ALREADY_FLAGGED
@@ -1859,3 +1859,5 @@ NS_SET_EMAIL_ERROR_PASSRESET_ON
 	Non puoi cambiare l'indirizzo E-Mail del tuo nick finche' il reset della password non sara' completato o scaduto.
 NS_INFO_PASSRESET_REQUEST
 	* Questo nick ha chiesto un reset della password.
+NS_IDENTIFY_PASSRESET_REMINDER
+	Attenzione: completa il reset della password entro %d minuti, impostandone una nuova con il comando: /NS SET PASSWD %s <password-a-tua-scelta>

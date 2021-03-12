@@ -1860,4 +1860,4 @@ NS_SET_EMAIL_ERROR_PASSRESET_ON
 NS_INFO_PASSRESET_REQUEST
 	* Este nick solicitó un restablecimiento de contraseña.
 NS_IDENTIFY_PASSRESET_REMINDER
-	Attention: complete el restablecimiento de su contraseña en %d minutos con el siguiente comando: /NS SET PASSWD %s <contraseña-de-su-elección>
+	Attention: complete el restablecimiento de su contraseña en %d minutos con los siguientes comandos: /NICK %s y lesto /NS SET PASSWD %s <contraseña-de-su-elección>

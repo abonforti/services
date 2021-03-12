@@ -1860,4 +1860,4 @@ NS_SET_EMAIL_ERROR_PASSRESET_ON
 NS_INFO_PASSRESET_REQUEST
 	* Ce pseudo a demandé une réinitialisation du mot de passe.
 NS_IDENTIFY_PASSRESET_REMINDER
-	Attention: terminez la réinitialisation de votre mot de passe dans les %d minutes avec la commande suivante: /NS SET PASSWD %s <mot-de-passe-de-votre-choix>
+	Attention: terminez la réinitialisation de votre mot de passe dans les %d minutes avec les commandes suivante: /NICK %s /NS SET PASSWD %s <mot-de-passe-de-votre-choix>

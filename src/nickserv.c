@@ -637,7 +637,6 @@ void expire_nicks() {
 void nickserv_quarter_hourly_expire() {
 	NickInfo *ni, *next;
 	int i;
-	const expireTimeResetPass = (NOW - FIFTEEN_MINUTES);
 	long count = 0;
 	long xcount = 0;
 
@@ -654,7 +653,7 @@ void nickserv_quarter_hourly_expire() {
 
 			if (ni->last_email_request != 0) {
 
-				if (expireTimeResetPass > ni->last_email_request && FlagSet(ni->flags, NI_PASSRESET)) {
+				if (NOW > ni->last_email_request + FIFTEEN_MINUTES && FlagSet(ni->flags, NI_PASSRESET)) {
 					ni->auth = 0;
 					ni->last_email_request = 0;
 

@@ -93,6 +93,7 @@ typedef	int	agentid_t;
 #define NICKSIZE		NICKMAX + 1
 #define PASSMAX			32
 #define PASSSIZE		PASSMAX + 1
+#define PASSHASHSIZE    32
 #define UINMAX			11
 #define UINSIZE			UINMAX + 1
 #define URLMAX			100

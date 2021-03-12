@@ -467,8 +467,8 @@ cat >Makefile.inc <<EOT
 # to it will be erased next time "configure" is run.
 
 CC=$CC
-BASE_CFLAGS=$CC_FLAGS
-LFLAGS=$CC_LFLAGS
+BASE_CFLAGS=$CC_FLAGS -O2 -m32 -fgnu89-inline
+LFLAGS=$CC_LFLAGS -m32
 LIBS=$CC_LIBS
 
 PROGRAM=services

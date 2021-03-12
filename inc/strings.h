@@ -205,6 +205,7 @@ extern size_t str_copy_checked(CSTR source, STR buffer, size_t bufferSize);
 extern size_t str_append_checked(CSTR append, STR buffer, size_t bufferFreeSpace);
 
 extern STR str_duplicate(CSTR string);
+extern STR str_merge(CSTR string1, CSTR string2);
 
 extern int str_compare(CSTR string1, CSTR string2);
 extern int str_compare_nocase(CSTR string1, CSTR string2);

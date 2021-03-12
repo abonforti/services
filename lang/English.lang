@@ -1588,9 +1588,17 @@ NS_SENDPASS_EMAIL_SUBJECT
 	Subject: Password for nick %s
 	
 NS_SENDPASS_EMAIL_TEXT
-	Password retreival by: %s
-	Received: %s
-	Password for nick %s is: %s
+	Password reset request for nick %s sent by: %s
+	Received on: %s
+	
+	To reset your nick's password, identify your nick using the following temporary code:
+	/NS ID %s %s
+	
+	Once identified, you will need to proceed by setting your nick and changing the temporary password to one
+	password of your choice, using the following commands:
+	
+	/NICK %s
+	/NS SET PASSWD %s <password-chosen>
 	
 NS_SENDPASS_ERROR_NICK_NOT_AUTH
 	User %s has not authorized via email.
@@ -1849,3 +1857,11 @@ CS_EXPLIST_HEADER
 	Expired nicks in the %s list of %s:
 CS_SENDCODE_SYNTAX_ERROR
 	Syntax: SENDCODE #channel
+NS_DROP_ERROR_RESETPASS_ON
+	You cannot drop your nick until your password reset is completed or expired.
+NS_SET_EMAIL_ERROR_PASSRESET_ON
+	You cannot request an E-Mail change until your password reset is completed or expired.
+NS_INFO_PASSRESET_REQUEST
+	 * This nick requested a password reset.
+NS_IDENTIFY_PASSRESET_REMINDER
+	Attention: complete your password reset within %d minutes with the following commands: /NICK %s and then /NS SET PASSWD %s <password-of-your-choice>

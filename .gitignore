@@ -11,8 +11,10 @@ run/data/*.db
 run/data/services.core-*
 run/data/services-*
 Makefile.inc
+Makefile
 inc/sysconf.h
 configure.log
 *~
 .DS_Store
 ._*
+run/services.pid

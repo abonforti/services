@@ -391,9 +391,10 @@ STR	str_toupper(STR string) {
 	CHAR	*ptr = string;
 
 	if (IS_NOT_NULL(ptr))
-		while (*ptr)
-			*ptr++ = str_char_toupper(*ptr);
+		while (*ptr) {
+			*ptr = str_char_toupper(*ptr);
 			ptr++;
+		}
 	return string;
 }
 
@@ -402,9 +403,10 @@ STR	str_tolower(STR string) {
 	CHAR	*ptr = string;
 
 	if (IS_NOT_NULL(ptr))
-		while (*ptr)
-			*ptr++ = str_char_tolower(*ptr);
+		while (*ptr) {
+			*ptr = str_char_tolower(*ptr);
 			ptr++;
+		}
 	return string;
 }
 
@@ -783,4 +785,19 @@ BOOL str_settingsinfo_remove(SettingsInfo **infoList, unsigned long int type) {
 	}
 
 	return FALSE;
+}
+
+STR str_merge(CSTR string1, CSTR string2)
+{
+	char *s;
+	size_t len = str_len(string1) + str_len(string2);
+
+	s = mem_malloc((len + 1) * sizeof(char));
+	if (s == NULL)
+		return NULL;
+
+	len -= str_copy_checked(string1, s, len + 1);
+	str_append_checked(string2, s, len + 1);
+
+	return s;
 }

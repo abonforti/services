@@ -1345,9 +1345,9 @@ NS_ERROR_MUST_IDENTIFY
 NS_ERROR_NICK_ALREADY_AUTH
 	ERRORE: La registrazione del tuo nick e' gia' stata confermata.
 NS_ERROR_NICK_FORBIDDEN
-	Il nick %s e' vietato e non può essere usato ne' registrato.
+	Il nick %s e' vietato e non puï¿½ essere usato ne' registrato.
 NS_ERROR_NICK_FROZEN
-	Il nick %s e' bloccato e non può essere usato.
+	Il nick %s e' bloccato e non puï¿½ essere usato.
 NS_ERROR_NICK_NOT_IN_USE
 	Nessuno sta usando il nick %s in questo momento.
 NS_FLAG_ERROR_NICK_ALREADY_FLAGGED
@@ -1589,12 +1589,20 @@ NS_SENDCODE_ERROR_NO_CODE
 NS_SENDCODE_SYNTAX_ERROR
 	Syntax: SENDCODE nickname
 NS_SENDPASS_EMAIL_SUBJECT
-	Subject: Password del nick %s
+	Subject: Reset password del nick %s
 	
 NS_SENDPASS_EMAIL_TEXT
-	Richiesta di password inviata da: %s
-	Ricevuta: %s
-	La password del nick %s e': %s
+	Richiesta di reset password per il nick %s inviata da: %s
+	Ricevuta il: %s
+	
+	Per reimpostare la password del tuo nick, identificati al tuo nick usando il seguente codice temporaneo:
+	/NS ID %s %s
+	
+	Una volta identificato, dovrai procedere impostando il tuo nick e cambiando la password temporanea in una
+	password a tua scelta, utilizzando i seguenti comandi:
+	
+	/NICK %s
+	/NS SET PASSWD %s <password-a-tua-scelta>
 	
 NS_SENDPASS_ERROR_NICK_NOT_AUTH
 	User %s has not authorized via email.
@@ -1853,3 +1861,11 @@ CS_EXPLIST_HEADER
 	Nick scaduti nella lista %s di %s:
 CS_SENDCODE_SYNTAX_ERROR
 	Syntax: SENDCODE #channel
+NS_DROP_ERROR_RESETPASS_ON
+	Non puoi cancellare la registrazione del tuo nick finche' il reset della password non sara' completato o scaduto.
+NS_SET_EMAIL_ERROR_PASSRESET_ON
+	Non puoi cambiare l'indirizzo E-Mail del tuo nick finche' il reset della password non sara' completato o scaduto.
+NS_INFO_PASSRESET_REQUEST
+	 * Questo nick ha chiesto un reset della password.
+NS_IDENTIFY_PASSRESET_REMINDER
+	Attenzione: completa il reset della password entro %d minuti, impostandone una nuova con i seguenti comandi: /NICK %s e poi /NS SET PASSWD %s <password-a-tua-scelta>

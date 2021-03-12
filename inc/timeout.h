@@ -74,6 +74,7 @@ struct _timeout {
 extern unsigned long timeout_count;
 
 extern time_t	time_next_midnight;
+extern time_t   time_next_quarter_hourly;
 extern int		time_today_day, time_today_month, time_today_year, time_today_wday;
 
 

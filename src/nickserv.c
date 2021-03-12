@@ -36,7 +36,7 @@
 #include "../inc/nickserv.h"
 #include "../inc/reserved.h"
 #include "../inc/blacklist.h"
-
+#include "../inc/crypt_pass.h"
 
 /*********************************************************
  * Global variables                                      *
@@ -353,9 +353,9 @@ void load_ns_dbase(void) {
 					#ifdef FIX_PASSWORD_SPACE
 					char	*space;
 					#endif
-				
+
 					TRACE();
-					
+
 					#ifdef	FIX_USE_MPOOL
 					ni = mempool_alloc(NickInfo*, nickdb_mempool, FALSE);
 					#else
@@ -385,6 +385,9 @@ void load_ns_dbase(void) {
 					ni->last_drop_request = 0;
 
 					if (FlagUnset(ni->flags, NI_AUTH) && FlagUnset(ni->flags, NI_MAILCHANGE))
+						ni->auth = 0;
+
+					if (FlagUnset(ni->flags, NI_AUTH) && FlagUnset(ni->flags, NI_PASSRESET))
 						ni->auth = 0;
 					#endif
 
@@ -416,7 +419,7 @@ void load_ns_dbase(void) {
 					if (ni->freeze)
 						ni->freeze = read_string(f, NICKSERV_DB);
 					if (ni->regemail)
-						ni->regemail = read_string(f, NICKSERV_DB);				
+						ni->regemail = read_string(f, NICKSERV_DB);
 
 					#ifdef FIX_NS_REGMAIL_DB
 
@@ -524,7 +527,7 @@ void save_ns_dbase(void) {
 				write_string(ni->freeze, f, NICKSERV_DB);
 			if (ni->regemail)
 				write_string(ni->regemail, f, NICKSERV_DB);
-			
+
 			write_string(ni->last_usermask ? ni->last_usermask : "", f, NICKSERV_DB);
 			write_string(ni->last_realname ? ni->last_realname : "", f, NICKSERV_DB);
 
@@ -561,7 +564,7 @@ void expire_nicks() {
 	for (i = 65; i < 126; ++i) {
 
 		for (ni = nicklists[i]; ni; ni = next) {
-			
+
 			TRACE();
 			next = ni->next;
 			++count;
@@ -630,6 +633,43 @@ void expire_nicks() {
 }
 
 /*********************************************************/
+
+void nickserv_quarter_hourly_expire() {
+	NickInfo *ni, *next;
+	int i;
+	long count = 0;
+	long xcount = 0;
+
+
+	TRACE_FCLT(FACILITY_NICKSERV_EXPIRE_PASSRESET);
+
+	for (i = 65; i < 126; ++i) {
+
+		for (ni = nicklists[i]; ni; ni = next) {
+
+			TRACE();
+			next = ni->next;
+			++count;
+
+			if (ni->last_email_request != 0) {
+
+				if (NOW > ni->last_email_request + FIFTEEN_MINUTES && FlagSet(ni->flags, NI_PASSRESET)) {
+					ni->auth = 0;
+					ni->last_email_request = 0;
+
+					RemoveFlag(ni->flags, NI_PASSRESET);
+
+					LOG_SNOOP(s_OperServ, "NS PR+ %s", ni->nick);
+					++xcount;
+				}
+			}
+		}
+	}
+
+	TRACE();
+	if (CONF_DISPLAY_UPDATES)
+		send_globops(s_NickServ, "Completed Pass Reset Expires (\2%d\2/\2%d\2)", xcount, count);
+}
 
 void nickserv_daily_expire() {
 
@@ -764,7 +804,7 @@ NickInfo *findnick(CSTR nickname) {
 
 	NickInfo *ni;
 
-	
+
 	TRACE_FCLT(FACILITY_NICKSERV_FINDNICK);
 
 	if (IS_NOT_NULL(nickname)) {
@@ -818,7 +858,7 @@ static void delnick(NickInfo *ni) {
 	if (FlagSet(ni->flags, NI_TIMEOUT)) {
 
 		if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
-			log_error(FACILITY_NICKSERV_DELNICK, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+			log_error(FACILITY_NICKSERV_DELNICK, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 				"delnick(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
 	}
 
@@ -828,7 +868,7 @@ static void delnick(NickInfo *ni) {
 	if (FlagSet(ni->flags, NI_ENFORCED)) {
 
 		if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_RELEASE, (unsigned long) ni))
-			log_error(FACILITY_NICKSERV_DELNICK, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+			log_error(FACILITY_NICKSERV_DELNICK, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 				"delnick(): Timeout not found for %s (NickServ/Release)", ni->nick);
 
 		send_QUIT(ni->nick, "Enforcer quitting due to nick expiration.");
@@ -995,7 +1035,7 @@ void validate_user(const User *user) {
 		timeout_start_collide(ni, NI_KILL_NORMAL);
 		return;
 	}
-	
+
 	TRACE();
 
 	if (user_is_identified_to(user, user->nick) || (onAccess = is_on_access(user, ni))) {
@@ -1128,10 +1168,10 @@ static void timeout_collide_countdown(Timeout *to) {
 				if (FlagSet(ni->flags, NI_FORBIDDEN))
 					send_notice_lang_to_nick(s_NickServ, ni->nick, lang_id, NS_TIMEOUT_NICK_FORBIDDEN, ni->nick);
 
-				else if (FlagSet(ni->flags, NI_FROZEN))		
+				else if (FlagSet(ni->flags, NI_FROZEN))
 					send_notice_lang_to_nick(s_NickServ, ni->nick, lang_id, NS_TIMEOUT_NICK_FROZEN, ni->nick);
 
-				else	
+				else
 					send_notice_lang_to_nick(s_NickServ, ni->nick, lang_id, NS_TIMEOUT_NICK_REGISTERED, ni->nick);
 			}
 
@@ -1158,7 +1198,7 @@ static void collide(NickInfo *ni, BOOL from_timeout) {
 	if (!from_timeout && FlagSet(ni->flags, NI_TIMEOUT)) {
 
 		if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
-			log_error(FACILITY_NICKSERV_COLLIDE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+			log_error(FACILITY_NICKSERV_COLLIDE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 				"collide(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
 	}
 
@@ -1280,18 +1320,18 @@ static void release(NickInfo *ni, BOOL from_timeout) {
 	TRACE_FCLT(FACILITY_NICKSERV_RELEASE);
 
 	if (!from_timeout) {
-		
+
 		if (FlagSet(ni->flags, NI_TIMEOUT)) {
 
 			if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
-				log_error(FACILITY_NICKSERV_RELEASE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+				log_error(FACILITY_NICKSERV_RELEASE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 					"release(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
 		}
 
 		if (FlagSet(ni->flags, NI_ENFORCED)) {
 
 			if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_RELEASE, (unsigned long) ni))
-				log_error(FACILITY_NICKSERV_RELEASE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
+				log_error(FACILITY_NICKSERV_RELEASE, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
 					"release(): Timeout not found for %s (NickServ/Release)", ni->nick);
 		}
 
@@ -1350,6 +1390,7 @@ void nickserv_update_news(const LANG_ID lang_id) {
 static void do_register(CSTR source, User *callerUser, ServiceCommandData *data) {
 
 	const char *pass, *email;
+	char *crypted_password;
 	RESERVED_RESULT reserved;
 
 
@@ -1377,8 +1418,8 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 	TRACE_MAIN();
 	if (IS_NULL(pass = strtok(NULL, " ")) || IS_NULL(email = strtok(NULL, " "))) {
 
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_REGISTER_SYNTAX_ERROR);	
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "REGISTER");	
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_REGISTER_SYNTAX_ERROR);
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "REGISTER");
 	}
 	else if ((NOW < callerUser->lastnickreg + CONF_REGISTER_DELAY) && !is_services_valid_oper(callerUser)) {
 
@@ -1419,8 +1460,8 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 	}
 	else if (str_equals_nocase(source, pass) && IS_NOT_NULL(strtok(NULL, " "))) {
 
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_REGISTER_SYNTAX_ERROR);	
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "REGISTER");	
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_REGISTER_SYNTAX_ERROR);
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "REGISTER");
 	}
 	else if (str_equals_nocase(source, pass) || (str_len(pass) < 5)) {
 
@@ -1445,7 +1486,8 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 		TRACE_MAIN();
 		++ns_regCount;
 
-		str_copy_checked(pass, callerUser->ni->pass, PASSMAX);
+		crypted_password = crypt_password(pass);
+		set_hashed_password(callerUser->ni->pass, crypted_password);
 
 		if (!user_is_identified_to(callerUser, source)) {
 
@@ -1486,7 +1528,7 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 		clear_memos(callerUser->ni->nick);
 
 		LOG_SNOOP(s_OperServ, "NS R %s -- by %s (%s@%s) [E: %s]", source, source, callerUser->username, callerUser->host, callerUser->ni->email);
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "R %s -- by %s (%s@%s) [E: %s] [P: %s]", source, source, callerUser->username, callerUser->host, callerUser->ni->email, callerUser->ni->pass);
+		log_services(LOG_SERVICES_NICKSERV_GENERAL, "R %s -- by %s (%s@%s) [E: %s] [P: %s]", source, source, callerUser->username, callerUser->host, callerUser->ni->email, password_to_hex(callerUser->ni->pass));
 
 		if (CONF_USE_EMAIL) {
 
@@ -1514,7 +1556,7 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 				snprintf(misc_buffer, MISC_BUFFER_SIZE, "%s -f %s -t < authnick.txt", CONF_SENDMAIL_PATH, CONF_RETURN_EMAIL);
 				system(misc_buffer);
 
-				snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f authnick.txt");		
+				snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f authnick.txt");
 				system(misc_buffer);
 			}
 			else
@@ -1593,7 +1635,8 @@ static void do_auth(CSTR source, User *callerUser, ServiceCommandData *data) {
 
 static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	char		*nick, *pass;
+	char		*nick, *pass, *err;
+	unsigned long int authcode;
 	NickInfo	*ni;
 	BOOL		sameNick = FALSE, freeMe = FALSE;
 
@@ -1638,223 +1681,256 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 	else if (str_equals_nocase(source, nick))
 		sameNick = TRUE;
 
-	if (IS_NULL(ni = findnick(nick)))
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), ERROR_NICK_NOT_REG, nick);
+	if (IS_NULL(ni = findnick(nick))) {
 
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), ERROR_NICK_NOT_REG, nick);
+		return;
+	}
 	else if (FlagSet(ni->flags, NI_FROZEN)) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FROZEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
+		return;
 	}
 	else if (FlagSet(ni->flags, NI_FORBIDDEN)) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FORBIDDEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
+		return;
 	}
-	else if (str_not_equals(pass, ni->pass)) {
+
+	if (FlagSet(ni->flags, NI_PASSRESET)) {
+		TRACE_MAIN();
+
+		time_t expireTime = ni->last_email_request + FIFTEEN_MINUTES;
+
+		authcode = strtoul(pass, &err, 10);
+
+		if (!((*err == '\0') && (authcode != 0) && (authcode == ni->auth) && NOW < expireTime)) {
+
+			LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, authcode);
+			log_services(LOG_SERVICES_NICKSERV_ID, "*I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, authcode);
+
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, nick);
+
+			update_invalid_password_count(callerUser, s_NickServ, nick);
+			return;
+		}
+	} else if (FlagUnset(ni->flags, NI_PASSRESET) && !verify_hashed_password(crypt_password(pass), ni->pass)) {
 
 		TRACE_MAIN();
-		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : pass);
-		log_services(LOG_SERVICES_NICKSERV_ID, "*I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
+		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));
+		log_services(LOG_SERVICES_NICKSERV_ID, "*I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypt_password(pass)));
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, nick);
 
 		update_invalid_password_count(callerUser, s_NickServ, nick);
+		return;
+	}
+
+	char accessLevel[256], modebuf[16];
+	int modeIdx = 1;
+	BOOL isOper = FALSE;
+
+	memset(accessLevel, 0, sizeof(accessLevel));
+
+	TRACE_MAIN();
+
+	if (!user_is_identified_to(callerUser, ni->nick)) {
+
+		++(callerUser->idcount);
+		callerUser->id_nicks = mem_realloc(callerUser->id_nicks, sizeof(char *) * callerUser->idcount);
+		callerUser->id_nicks[callerUser->idcount - 1] = str_duplicate(ni->nick);
+	}
+
+	TRACE_MAIN();
+
+	if (sameNick) {
+
+		if (FlagSet(ni->flags, NI_TIMEOUT)) {
+
+			if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
+				log_error(FACILITY_NICKSERV_HANDLE_IDENTIFY, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
+					"do_identify(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
+
+			RemoveFlag(ni->flags, NI_TIMEOUT);
+		}
+
+		// l'utente si e' identificato al nick corrente -> cambiare il lang
+		callerUser->current_lang = EXTRACT_LANG_ID(ni->langID);
+		current_caller_lang = callerUser->current_lang;
 	}
 	else {
 
-		char accessLevel[256], modebuf[16];
-		int modeIdx = 1;
-		BOOL isOper = FALSE;
+		// l'utente si e' identificando ad un altro nick
+		// se NON e' identificato al nick corrente, cambiare il lang
+		if (!user_is_identified_to(callerUser, source)) {
 
-		memset(accessLevel, 0, sizeof(accessLevel));
-
-		TRACE_MAIN();
-
-		if (!user_is_identified_to(callerUser, ni->nick)) {
-
-			++(callerUser->idcount);
-			callerUser->id_nicks = mem_realloc(callerUser->id_nicks, sizeof(char *) * callerUser->idcount);
-			callerUser->id_nicks[callerUser->idcount - 1] = str_duplicate(ni->nick);
-		}
-
-		TRACE_MAIN();
-
-		if (sameNick) {
-
-			if (FlagSet(ni->flags, NI_TIMEOUT)) {
-
-				if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
-					log_error(FACILITY_NICKSERV_HANDLE_IDENTIFY, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING, 
-						"do_identify(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
-
-				RemoveFlag(ni->flags, NI_TIMEOUT);
-			}
-
-			// l'utente si e' identificato al nick corrente -> cambiare il lang
 			callerUser->current_lang = EXTRACT_LANG_ID(ni->langID);
 			current_caller_lang = callerUser->current_lang;
 		}
-		else {
-
-			// l'utente si e' identificando ad un altro nick
-			// se NON e' identificato al nick corrente, cambiare il lang
-			if (!user_is_identified_to(callerUser, source)) {
-
-				callerUser->current_lang = EXTRACT_LANG_ID(ni->langID);
-				current_caller_lang = callerUser->current_lang;
-			}
-		}
-
-		/* Don't update Last Seen/Usermask/Realname if it's an oper identifying remotely. */
-		if (sameNick || FlagUnset(callerUser->mode, UMODE_I)) {
-
-			ni->last_seen = NOW;
-			if (ni->last_usermask)
-				mem_free(ni->last_usermask);
-
-			ni->last_usermask = mem_malloc(str_len(callerUser->username) + str_len(user_public_host(callerUser)) + 2);
-			sprintf(ni->last_usermask, "%s@%s", callerUser->username, user_public_host(callerUser));
-
-			if (ni->last_realname)
-				mem_free(ni->last_realname);
-			ni->last_realname = str_duplicate(callerUser->realname);
-		}
-
-		if (FlagSet(ni->flags, NI_REMIND))
-			RemoveFlag(ni->flags, NI_REMIND);
-
-		if (IS_NULL(ni->email))
-			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_NO_REGEMAIL_SET);
-
-		isOper = user_is_ircop(callerUser);
-
-		modebuf[0] = '+';
-
-		switch (check_oper(callerUser, nick, NULL)) {
-
-			case ULEVEL_USER:
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r) && FlagUnset(ni->flags, NI_AUTH)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-				break;
-
-			case ULEVEL_HOP:
-				if (FlagUnset(callerUser->mode, UMODE_h)) {
-
-					modebuf[modeIdx++] = 'h';
-					AddFlag(callerUser->mode, UMODE_h);
-				}
-
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_HELPOP), accessLevel, sizeof(accessLevel));
-				break;
-
-			case ULEVEL_SOP:
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_SOP), accessLevel, sizeof(accessLevel));
-				break;
-
-			case ULEVEL_SA:
-				if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
-
-					modebuf[modeIdx++] = 'a';
-					AddFlag(callerUser->mode, UMODE_a);
-				}
-
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_ADMIN), accessLevel, sizeof(accessLevel));
-				break;
-
-			case ULEVEL_SRA:
-				if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
-
-					modebuf[modeIdx++] = 'a';
-					AddFlag(callerUser->mode, UMODE_a);
-				}
-
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_ROOT), accessLevel, sizeof(accessLevel));
-				break;
-
-			case ULEVEL_CODER:
-				if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
-
-					modebuf[modeIdx++] = 'a';
-					AddFlag(callerUser->mode, UMODE_a);
-				}
-
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_CODER), accessLevel, sizeof(accessLevel));
-				break;
-
-			case ULEVEL_MASTER:
-				if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
-
-					modebuf[modeIdx++] = 'a';
-					AddFlag(callerUser->mode, UMODE_a);
-				}
-
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_MASTER), accessLevel, sizeof(accessLevel));
-				break;
-
-			default:
-				LOG_DEBUG_SNOOP("Unknown access return (%d) for user %s", check_oper(callerUser, nick, NULL), callerUser->nick);
-				break;
-		}
-
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : pass);
-
-		log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, pass);
-
-		if (modeIdx > 1) {
-
-			modebuf[modeIdx] = '\0';
-			send_user_SVSMODE(s_NickServ, source, modebuf, callerUser->tsinfo);
-		}
-
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_ID_OK, ni->nick, accessLevel);
-
-		if (sameNick && FlagSet(ni->flags, NI_AUTH))
-			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_NOT_AUTH, ni->email);
-
-		if (FlagSet(ni->flags, NI_MEMO_SIGNON))
-			check_memos(callerUser, ni);
 	}
+
+	/* Don't update Last Seen/Usermask/Realname if it's an oper identifying remotely. */
+	if (sameNick || FlagUnset(callerUser->mode, UMODE_I)) {
+
+		ni->last_seen = NOW;
+		if (ni->last_usermask)
+			mem_free(ni->last_usermask);
+
+		ni->last_usermask = mem_malloc(str_len(callerUser->username) + str_len(user_public_host(callerUser)) + 2);
+		sprintf(ni->last_usermask, "%s@%s", callerUser->username, user_public_host(callerUser));
+
+		if (ni->last_realname)
+			mem_free(ni->last_realname);
+		ni->last_realname = str_duplicate(callerUser->realname);
+	}
+
+	if (FlagSet(ni->flags, NI_REMIND))
+		RemoveFlag(ni->flags, NI_REMIND);
+
+	if (IS_NULL(ni->email))
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_NO_REGEMAIL_SET);
+
+	isOper = user_is_ircop(callerUser);
+
+	modebuf[0] = '+';
+
+	switch (check_oper(callerUser, nick, NULL)) {
+
+		case ULEVEL_USER:
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r) && FlagUnset(ni->flags, NI_AUTH)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+			break;
+
+		case ULEVEL_HOP:
+			if (FlagUnset(callerUser->mode, UMODE_h)) {
+
+				modebuf[modeIdx++] = 'h';
+				AddFlag(callerUser->mode, UMODE_h);
+			}
+
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_HELPOP), accessLevel, sizeof(accessLevel));
+			break;
+
+		case ULEVEL_SOP:
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_SOP), accessLevel, sizeof(accessLevel));
+			break;
+
+		case ULEVEL_SA:
+			if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
+
+				modebuf[modeIdx++] = 'a';
+				AddFlag(callerUser->mode, UMODE_a);
+			}
+
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_ADMIN), accessLevel, sizeof(accessLevel));
+			break;
+
+		case ULEVEL_SRA:
+			if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
+
+				modebuf[modeIdx++] = 'a';
+				AddFlag(callerUser->mode, UMODE_a);
+			}
+
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_ROOT), accessLevel, sizeof(accessLevel));
+			break;
+
+		case ULEVEL_CODER:
+			if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
+
+				modebuf[modeIdx++] = 'a';
+				AddFlag(callerUser->mode, UMODE_a);
+			}
+
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_CODER), accessLevel, sizeof(accessLevel));
+			break;
+
+		case ULEVEL_MASTER:
+			if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
+
+				modebuf[modeIdx++] = 'a';
+				AddFlag(callerUser->mode, UMODE_a);
+			}
+
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_MASTER), accessLevel, sizeof(accessLevel));
+			break;
+
+		default:
+			LOG_DEBUG_SNOOP("Unknown access return (%d) for user %s", check_oper(callerUser, nick, NULL), callerUser->nick);
+			break;
+	}
+
+	if (modeIdx > 1) {
+
+		modebuf[modeIdx] = '\0';
+		send_user_SVSMODE(s_NickServ, source, modebuf, callerUser->tsinfo);
+	}
+
+	send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_ID_OK, ni->nick, accessLevel);
+
+	if (FlagSet(ni->flags, NI_PASSRESET)) {
+		if (CONF_SET_EXTRASNOOP)
+			LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%lu]", nick, source, callerUser->username, callerUser->host, authcode);
+
+		log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%lu]", nick, source, callerUser->username, callerUser->host, authcode);
+
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_PASSRESET_REMINDER, 5, ni->nick, pass);
+		ni->last_email_request = NOW - TEN_MINUTES;
+	}
+	else {
+		if (CONF_SET_EXTRASNOOP)
+			LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));
+
+		log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, password_to_hex(crypt_password(pass)));
+	}
+
+
+	if (sameNick && FlagSet(ni->flags, NI_AUTH))
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_NOT_AUTH, ni->email);
+
+	if (FlagSet(ni->flags, NI_MEMO_SIGNON))
+		check_memos(callerUser, ni);
 
 	if (freeMe) {
 
@@ -1914,6 +1990,11 @@ static void do_drop(CSTR source, User *callerUser, ServiceCommandData *data) {
 			else if (FlagSet(ni->flags, NI_MAILCHANGE)) {
 
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_DROP_ERROR_MAILCHANGE_ON);
+				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), RECEIVE_NETWORK_ASSISTANCE, CONF_NETWORK_NAME);
+			}
+			else if (FlagSet(ni->flags, NI_PASSRESET)) {
+
+				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_DROP_ERROR_RESETPASS_ON);
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), RECEIVE_NETWORK_ASSISTANCE, CONF_NETWORK_NAME);
 			}
 			else if (FlagSet(ni->flags, NI_DROP)) {
@@ -2105,6 +2186,8 @@ static void do_set(CSTR source, User *callerUser, ServiceCommandData *data) {
 static void do_set_password(User *callerUser, CSTR param) {
 
 	char	*newpass;
+	char	*crypted_newpass;
+	char	*crypted_oldpass;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_SET_PASSWORD);
@@ -2112,6 +2195,8 @@ static void do_set_password(User *callerUser, CSTR param) {
 	if (param && IS_NOT_NULL(newpass = strchr(param, ' '))) {
 
 		*newpass++ = '\0';
+
+		crypted_newpass = crypt_password(newpass);
 
 		if (strchr(newpass, ' '))
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_WITH_SPACES);
@@ -2122,32 +2207,52 @@ static void do_set_password(User *callerUser, CSTR param) {
 		else if (str_len(newpass) > PASSMAX)
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_MAX_LENGTH, PASSMAX);
 
-		else if (str_equals(callerUser->ni->pass, newpass))
+		else if (verify_hashed_password(crypted_newpass, callerUser->ni->pass))
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_SAME_PASSWORD);
 
 		else if (string_has_ccodes(newpass))
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_WITH_CCODES);
 
 		else {
-		
+
 			/* "param" holds the old password. */
 
-			if (str_equals(param, callerUser->ni->pass)) {
+			crypted_oldpass = mem_calloc(PASSHASHSIZE, sizeof(char));
 
-				if (str_not_equals(param, newpass)) {
+			if (FlagSet(callerUser->ni->flags, NI_PASSRESET)) {
+				unsigned long int authcode;
+				char *err;
+				time_t expireTime = callerUser->ni->last_email_request + FIFTEEN_MINUTES;
+
+				authcode = strtoul(param, &err, 10);
+
+				if ((*err == '\0') && (authcode != 0) && (authcode == callerUser->ni->auth) && NOW < expireTime) {
+					mem_free(crypted_oldpass);
+					crypted_oldpass = callerUser->ni->pass;
+					callerUser->ni->auth = 0;
+					callerUser->ni->last_email_request = 0;
+					RemoveFlag(callerUser->ni->flags, NI_PASSRESET);
+				}
+			} else {
+				crypted_oldpass = crypt_password(param);
+			}
+
+			if (verify_hashed_password(crypted_oldpass, callerUser->ni->pass)) {
+
+				if (!verify_hashed_password(crypted_oldpass, crypted_newpass)) {
 
 					TRACE_MAIN();
 
 					if (CONF_SET_EXTRASNOOP && !user_is_ircop(callerUser))
-						LOG_SNOOP(s_OperServ, "NS P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, newpass);
+						LOG_SNOOP(s_OperServ, "NS P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(callerUser->ni->pass), password_to_hex(crypted_newpass));
 					else
 						LOG_SNOOP(s_OperServ, "NS P %s -- by %s (%s@%s) [Logged]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host);
 
-					log_services(LOG_SERVICES_NICKSERV_GENERAL, "P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, newpass);
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(callerUser->ni->pass), password_to_hex(crypted_newpass));
 
 					send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_PASSWORD_CHANGED, callerUser->ni->nick, newpass);
 
-					str_copy_checked(newpass, callerUser->ni->pass, PASSMAX);
+					set_hashed_password(callerUser->ni->pass, crypted_newpass);
 
 					user_remove_id(callerUser->nick, FALSE);
 
@@ -2161,8 +2266,14 @@ static void do_set_password(User *callerUser, CSTR param) {
 			else {
 
 				TRACE_MAIN();
-				LOG_SNOOP(s_OperServ, "NS *P %s -- by %s (%s@%s) [Wrong Old Pass: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, param);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "*P %s -- by %s (%s@%s) [Old Pass: %s - Given: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, callerUser->ni->pass, param);
+				if (FlagSet(callerUser->ni->flags, NI_PASSRESET)) {
+					LOG_SNOOP(s_OperServ, "NS *P %s -- by %s (%s@%s) [Wrong Reset Pass Code]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host);
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "*P %s -- by %s (%s@%s) [Wrong Reset Pass Code]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host);
+				}
+				else {
+					LOG_SNOOP(s_OperServ, "NS *P %s -- by %s (%s@%s) [Wrong Old Pass: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, crypted_oldpass);
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "*P %s -- by %s (%s@%s) [Old Pass: %s - Given: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(callerUser->ni->pass), password_to_hex(crypted_oldpass));
+				}
 
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_ERROR_WRONG_OLD_PASS, callerUser->ni->nick);
 
@@ -2359,6 +2470,9 @@ static void do_set_email(const User *callerUser, CSTR param, BOOL hasmail) {
 		else if (FlagSet(ni->flags, NI_DROP))
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_EMAIL_ERROR_DROP_ON);
 
+		else if (FlagSet(ni->flags, NI_PASSRESET))
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_EMAIL_ERROR_PASSRESET_ON);
+
 		else if (str_len(param) > MAILMAX)
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_MAIL_MAX_LENGTH, MAILMAX);
 
@@ -2432,7 +2546,7 @@ static void do_set_email(const User *callerUser, CSTR param, BOOL hasmail) {
 				snprintf(misc_buffer, MISC_BUFFER_SIZE, "%s -f %s -t < email.txt", CONF_SENDMAIL_PATH, CONF_RETURN_EMAIL);
 				system(misc_buffer);
 
-				snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f email.txt");		
+				snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f email.txt");
 				system(misc_buffer);
 			}
 			else
@@ -2777,7 +2891,7 @@ static void do_access(CSTR source, User *callerUser, ServiceCommandData *data) {
 
 		TRACE_MAIN();
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ACCESS_LIST_HEADER, callerUser->ni->nick);
-		
+
 		for (anAccess = callerUser->ni->access, accessIdx = 0; (accessIdx < callerUser->ni->accesscount); ++anAccess, ++accessIdx) {
 
 			if (mask && !str_match_wild_nocase(mask, *anAccess))
@@ -2885,7 +2999,7 @@ static void do_access(CSTR source, User *callerUser, ServiceCommandData *data) {
 			callerUser->ni->access[callerUser->ni->accesscount - 1] = str_duplicate(mask);
 
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ACCESS_MASK_ADDED, mask);
-			
+
 			log_services(LOG_SERVICES_NICKSERV_ACCESS, "ADD %s -- by %s (%s@%s)", mask, source, callerUser->username, callerUser->host);
 		}
 	}
@@ -2971,7 +3085,7 @@ static void do_access(CSTR source, User *callerUser, ServiceCommandData *data) {
 		callerUser->ni->accesscount = 0;
 		mem_free(callerUser->ni->access);
 		callerUser->ni->access = NULL;
-		
+
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ACCESS_LIST_WIPED);
 
 		if (CONF_SET_READONLY)
@@ -2989,7 +3103,7 @@ static void do_access(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_acc(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	User *user;
 	NickInfo *ni;
@@ -3044,7 +3158,7 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 	}
 	else if (str_len(nick) > NICKMAX)
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), ERROR_NICK_MAX_LENGTH, NICKMAX);
-	
+
 	else if (IS_NULL(ni = findnick(nick)))
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), ERROR_NICK_NOT_REG, nick);
 
@@ -3081,7 +3195,7 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_REAL_NAME, ni->last_realname);
 
 		if (IS_NOT_NULL(user)) {
-			
+
 			if (user_is_identified_to(user, ni->nick))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_IS_ONLINE_ID, ni->nick);
 
@@ -3168,6 +3282,9 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 			if (FlagSet(ni->flags, NI_MAILCHANGE))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_MAIL_CHANGE, ni->regemail);
 
+			if (FlagSet(ni->flags, NI_PASSRESET))
+				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_PASSRESET_REQUEST);
+
 			if (FlagSet(ni->flags, NI_DROP))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_DROP_REQUEST);
 		}
@@ -3176,10 +3293,10 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 			TRACE_MAIN();
 			if (FlagSet(ni->flags, NI_FROZEN))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_OPER_NICK_FROZEN, ni->freeze);
-		
+
 			if (FlagSet(ni->flags, NI_MARK))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_OPER_NICK_MARKED, ni->mark);
-			
+
 			if (FlagSet(ni->flags, NI_HOLD))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_OPER_NICK_HELD, ni->hold);
 
@@ -3193,6 +3310,9 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 			if (FlagSet(ni->flags, NI_MAILCHANGE))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_OPER_MAILCHANGE, ni->regemail, ni->auth);
 
+			if (FlagSet(ni->flags, NI_PASSRESET))
+				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_PASSRESET_REQUEST, ni->auth);
+
 			if (FlagSet(ni->flags, NI_DROP))
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_OPER_DROP_REQUEST, ni->auth);
 		}
@@ -3202,10 +3322,10 @@ static void do_info(CSTR source, User *callerUser, ServiceCommandData *data) {
 }
 
 /*********************************************************/
-			
+
 static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *nick, *pass;
+	const char *nick, *pass, *crypted_pass;
 	User *user;
 	NickInfo *ni;
 
@@ -3242,59 +3362,62 @@ static void do_recover(CSTR source, User *callerUser, ServiceCommandData *data) 
 	else if (str_equals_nocase(nick, source))
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RECOVER_ERROR_CANT_RECOVER_SELF);
 
-	else if (str_equals(pass, ni->pass)) {
-
-		TRACE_MAIN();
-		if (FlagSet(ni->flags, NI_ENFORCED))
-			release(ni, FALSE);
-		else
-			collide(ni, FALSE);
-
-		TRACE_MAIN();
-		if (!user_is_identified_to(callerUser, ni->nick)) {
-
-			++(callerUser->idcount);
-			callerUser->id_nicks = mem_realloc(callerUser->id_nicks, sizeof(char *) * callerUser->idcount);
-			callerUser->id_nicks[callerUser->idcount - 1] = str_duplicate(ni->nick);
-		}
-
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RECOVER_NICK_RECOVERED, ni->nick);
-
-//		Bahamut currently dislikes this.
-//		send_SVSNICK(source, ni->nick);
-
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-	}
 	else {
+		crypted_pass = crypt_password(pass);
+		if (verify_hashed_password(crypted_pass, ni->pass)) {
 
-		TRACE_MAIN();
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
+			TRACE_MAIN();
+			if (FlagSet(ni->flags, NI_ENFORCED))
+				release(ni, FALSE);
+			else
+				collide(ni, FALSE);
 
-		TRACE_MAIN();
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS *Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
+			TRACE_MAIN();
+			if (!user_is_identified_to(callerUser, ni->nick)) {
 
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
+				++(callerUser->idcount);
+				callerUser->id_nicks = mem_realloc(callerUser->id_nicks, sizeof(char *) * callerUser->idcount);
+				callerUser->id_nicks[callerUser->idcount - 1] = str_duplicate(ni->nick);
+			}
 
-		update_invalid_password_count(callerUser, s_NickServ, nick);
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RECOVER_NICK_RECOVERED, ni->nick);
+
+			//		Bahamut currently dislikes this.
+			//		send_SVSNICK(source, ni->nick);
+
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+		}
+		else {
+
+			TRACE_MAIN();
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
+
+			TRACE_MAIN();
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS *Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Rc %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+
+			update_invalid_password_count(callerUser, s_NickServ, nick);
+		}
 	}
 }
 
 /*********************************************************/
 
 static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) {
-				
-	const char *nick, *pass;
+
+	const char *nick, *pass, *crypted_pass;
 	NickInfo *ni;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_RELEASE);
 
 	if (IS_NULL(nick = strtok(NULL, " ")) || IS_NULL(pass = strtok(NULL, " "))) {
-		
+
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RELEASE_SYNTAX_ERROR);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "RELEASE");
 	}
@@ -3320,29 +3443,32 @@ static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FORBIDDEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
 	}
-	else if (str_equals(pass, ni->pass)) {
-
-		TRACE_MAIN();
-		release(ni, FALSE);
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RELEASE_NICK_RELEASED, ni->nick);
-
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-	}
 	else {
+		crypted_pass = crypt_password(pass);
+		if (verify_hashed_password(crypted_pass, ni->pass)) {
 
-		TRACE_MAIN();
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
+			TRACE_MAIN();
+			release(ni, FALSE);
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_RELEASE_NICK_RELEASED, ni->nick);
 
-		TRACE_MAIN();
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS *Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
 
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+		}
+		else {
 
-		update_invalid_password_count(callerUser, s_NickServ, nick);
+			TRACE_MAIN();
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
+
+			TRACE_MAIN();
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS *Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*Re %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+
+			update_invalid_password_count(callerUser, s_NickServ, nick);
+		}
 	}
 }
 
@@ -3350,7 +3476,7 @@ static void do_release(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 static void do_ghost(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *nick, *pass;
+	const char *nick, *pass, *crypted_pass;
 	User *user;
 	NickInfo *ni;
 
@@ -3390,51 +3516,54 @@ static void do_ghost(CSTR source, User *callerUser, ServiceCommandData *data) {
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FROZEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
 	}
-	else if (str_equals(pass, ni->pass)) {
+	else {
+		crypted_pass = crypt_password(pass);
+		if (verify_hashed_password(crypted_pass, ni->pass)) {
 
-		TRACE_MAIN();
-		if (FlagSet(ni->flags, NI_ENFORCED))
-			release(ni, FALSE);
+			TRACE_MAIN();
+			if (FlagSet(ni->flags, NI_ENFORCED))
+				release(ni, FALSE);
 
+			else {
+
+				char reason[IRCBUFSIZE];
+
+				snprintf(reason, sizeof(reason), lang_msg(user->current_lang, NS_GHOST_KILL_REASON), source);
+				send_KILL(s_NickServ, nick, reason, TRUE);
+			}
+
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_GHOST_NICK_GHOSTED);
+
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+		}
 		else {
 
-			char reason[IRCBUFSIZE];
+			TRACE_MAIN();
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
 
-			snprintf(reason, sizeof(reason), lang_msg(user->current_lang, NS_GHOST_KILL_REASON), source);
-			send_KILL(s_NickServ, nick, reason, TRUE);
+			if (CONF_SET_EXTRASNOOP)
+				LOG_SNOOP(s_OperServ, "NS *K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "*K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, password_to_hex(crypted_pass));
+
+			update_invalid_password_count(callerUser, s_NickServ, nick);
 		}
-
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_GHOST_NICK_GHOSTED);
-
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-	}
-	else {
-
-		TRACE_MAIN();
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, ni->nick);
-
-		if (CONF_SET_EXTRASNOOP)
-			LOG_SNOOP(s_OperServ, "NS *K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-
-		log_services(LOG_SERVICES_NICKSERV_GENERAL, "*K %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, pass);
-
-		update_invalid_password_count(callerUser, s_NickServ, nick);
 	}
 }
 
 /*********************************************************/
 
 static void do_delete(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
 
-	
+
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_DELETE);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_DELETE_SYNTAX_ERROR);
@@ -3543,24 +3672,24 @@ static void do_delete(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
-	
+
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_SENDCODE);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
-		
+
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SENDCODE_SYNTAX_ERROR);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), OPER_GET_MORE_INFO_ON_COMMAND, s_NS, "SENDCODE");
 	}
 	else if (str_len(nick) > NICKMAX) {
-		
+
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), OPER_ERROR_NICK_MAX_LENGTH, NICKMAX);
-		
+
 		if (data->operMatch)
 			LOG_SNOOP(s_OperServ, "NS *SC -- by %s (%s@%s) [Nick > %d]", callerUser->nick, callerUser->username, callerUser->host, NICKMAX);
-		else	
+		else
 			LOG_SNOOP(s_OperServ, "NS *SC -- by %s (%s@%s) through %s [Nick > %d]", callerUser->nick, callerUser->username, callerUser->host, data->operName, NICKMAX);
 	}
 	else if (IS_NULL(ni = findnick(nick))) {
@@ -3574,16 +3703,16 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 	}
 	else if (FlagSet(ni->flags, NI_FORBIDDEN))
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FORBIDDEN, ni->nick);
-	
-	else if (!FlagSet(ni->flags, NI_AUTH | NI_DROP | NI_MAILCHANGE) && (ni->auth == 0))
+
+	else if (!FlagSet(ni->flags, NI_AUTH | NI_DROP | NI_MAILCHANGE | NI_PASSRESET) && (ni->auth == 0))
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SENDCODE_ERROR_NO_CODE, ni->nick);
-	
+
 	else {
-		
+
 		FILE *mailfile;
 		char type[8];
 		LANG_MSG_ID operation_msg_id;
-		
+
 		if (FlagSet(ni->flags, NI_DROP)) {
 			snprintf(type, 7, "DROP");
 			operation_msg_id = NS_SENDCODE_EMAIL_SUBJECT_DROP;
@@ -3591,12 +3720,12 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 		else if (FlagSet(ni->flags, NI_MAILCHANGE)) {
 			snprintf(type, 7, "MAIL");
 			operation_msg_id = NS_SENDCODE_EMAIL_SUBJECT_MAIL;
-		} 
+		}
 		else {  /* It must be a registration code then... */
 			snprintf(type, 7, "AUTH");
 			operation_msg_id = NS_SENDCODE_EMAIL_SUBJECT_AUTH;
 		}
-		
+
 		if (data->operMatch) {
 
 			LOG_SNOOP(s_OperServ, "NS SC %s -- by %s (%s@%s) [%s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, type);
@@ -3625,7 +3754,7 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 
 			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDCODE_EMAIL_SUBJECT), lang_msg(GetNickLang(ni), operation_msg_id), ni->nick);
 			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDCODE_EMAIL_TEXT), data->operName, timebuf, ni->auth);
-			
+
 			if (FlagSet(ni->flags, NI_AUTH)) {
 				fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDCODE_EMAIL_AUTH), CONF_NETWORK_NAME, ni->nick, ni->auth);
 			}
@@ -3636,14 +3765,14 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 				fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDCODE_EMAIL_MAIL1), ni->email, ni->regemail, CONF_NETWORK_NAME, ni->nick, ni->auth);
 				fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDCODE_EMAIL_MAIL2), CONF_NETWORK_NAME, ni->nick);
 			}
-			
+
 			fprintf(mailfile, lang_msg(GetNickLang(ni), CSNS_EMAIL_TEXT_ABUSE), MAIL_ABUSE, CONF_NETWORK_NAME);
 			fclose(mailfile);
 
 			snprintf(misc_buffer, MISC_BUFFER_SIZE, "%s -f %s -t < sendcode.txt", CONF_SENDMAIL_PATH, CONF_RETURN_EMAIL);
 			system(misc_buffer);
 
-			snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f sendcode.txt");		
+			snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f sendcode.txt");
 			system(misc_buffer);
 		}
 		else
@@ -3652,8 +3781,8 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 }
 
 static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data) {
-				
-	const char *nick;
+
+	const char *nick, *crypted_pass, auth_str[11];
 	NickInfo *ni;
 
 
@@ -3697,15 +3826,22 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 			LOG_SNOOP(s_OperServ, "NS *S %s -- by %s (%s@%s) through %s [Marked]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
 			send_globops(s_NickServ, "\2%s\2 (through \2%s\2) tried to use SENDPASS on MARKed nick \2%s\2", source, data->operName, ni->nick);
 		}
-		
+
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), OPER_NS_ERROR_NICK_MARKED, ni->nick);
 	}
 	else if (FlagSet(ni->flags, NI_AUTH) || !ni->email)
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SENDPASS_ERROR_NICK_NOT_AUTH, ni->nick);
 
+	else if (FlagSet(ni->flags, NI_MAILCHANGE))
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_OPER_MAILCHANGE, ni->nick);
+
+	else if (FlagSet(ni->flags, NI_DROP))
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_INFO_OPER_DROP_REQUEST, ni->nick);
+
 	else {
 
 		FILE *mailfile;
+		unsigned long int randID;
 
 		if (data->operMatch) {
 
@@ -3724,6 +3860,14 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_SENDPASS_PASSWORD_SENT, ni->nick, ni->email);
 
+		srand(randomseed());
+		ni->auth = ni->time_registered + (getrandom(1, 99999) * getrandom(1, 9999));
+		ni->last_email_request = NOW;
+
+		snprintf(auth_str, sizeof(auth_str), "%lu", ni->auth);
+
+		AddFlag(ni->flags, NI_PASSRESET);
+
 		if (IS_NOT_NULL(mailfile = fopen("sendpass.txt", "w"))) {
 
 			char timebuf[64];
@@ -3734,14 +3878,14 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 			lang_format_localtime(timebuf, sizeof(timebuf), GetCallerLang(), TIME_FORMAT_DATETIME, NOW);
 
 			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_SUBJECT), ni->nick);
-			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_TEXT), data->operName, timebuf, ni->nick, ni->pass);
+			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_TEXT), ni->nick, data->operName, timebuf, ni->nick, auth_str, ni->nick, auth_str);
 			fprintf(mailfile, lang_msg(GetNickLang(ni), CSNS_EMAIL_TEXT_ABUSE), MAIL_ABUSE, CONF_NETWORK_NAME);
 			fclose(mailfile);
 
 			snprintf(misc_buffer, MISC_BUFFER_SIZE, "%s -f %s -t < sendpass.txt", CONF_SENDMAIL_PATH, CONF_RETURN_EMAIL);
 			system(misc_buffer);
 
-			snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f sendpass.txt");		
+			snprintf(misc_buffer, MISC_BUFFER_SIZE, "rm -f sendpass.txt");
 			system(misc_buffer);
 		}
 		else
@@ -3840,38 +3984,38 @@ static void do_getpass(CSTR source, User *callerUser, ServiceCommandData *data) 
 			if (data->operMatch) {
 
 				LOG_SNOOP(s_OperServ, "NS G %s -- by %s (%s@%s) [SRA->MARK]", ni->nick, callerUser->nick, callerUser->username, callerUser->host);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) [SRA->MARK - Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) [SRA->MARK - Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ni->pass));
 
 				send_globops(s_NickServ, "\2%s\2 used GETPASS on MARKed nick \2%s\2", callerUser->nick, ni->nick);
 			}
 			else {
 
 				LOG_SNOOP(s_OperServ, "NS G %s -- by %s (%s@%s) through %s [SRA->MARK]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [SRA->MARK - Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [SRA->MARK - Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ni->pass));
 
 				send_globops(s_NickServ, "\2%s\2 (through \2%s\2) used GETPASS on MARKed nick \2%s\2", callerUser->nick, data->operName, ni->nick);
 			}
 
-			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ni->nick, ni->pass);
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ni->nick, password_to_hex(ni->pass));
 		}
 		else {
 
 			if (data->operMatch) {
 
 				LOG_SNOOP(s_OperServ, "NS G %s -- by %s (%s@%s)", ni->nick, callerUser->nick, callerUser->username, callerUser->host);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) [Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) [Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ni->pass));
 
 				send_globops(s_NickServ, "\2%s\2 used GETPASS on \2%s\2", source, ni->nick);
 			}
 			else {
 
 				LOG_SNOOP(s_OperServ, "NS G %s -- by %s (%s@%s) through %s", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [Pass: %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ni->pass));
 
 				send_globops(s_NickServ, "\2%s\2 (through \2%s\2) used GETPASS on \2%s\2", source, data->operName, ni->nick);
 			}
 
-			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ni->nick, ni->pass);
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ni->nick, password_to_hex(ni->pass));
 		}
 	}
 }
@@ -4002,7 +4146,7 @@ static void do_forbid(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_unforbid(CSTR source, User *callerUser, ServiceCommandData *data) {
-				
+
 	const char *nick;
 	NickInfo *ni;
 
@@ -4261,14 +4405,14 @@ static void do_unfreeze(CSTR source, User *callerUser, ServiceCommandData *data)
 		if (data->operMatch) {
 
 			LOG_SNOOP(s_OperServ, "NS -Z %s -- by %s (%s@%s)", ni->nick, callerUser->nick, callerUser->username, callerUser->host);
-			log_services(LOG_SERVICES_NICKSERV_GENERAL, "-Z %s -- by %s (%s@%s)", ni->nick, callerUser->nick, callerUser->username, callerUser->host); 
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "-Z %s -- by %s (%s@%s)", ni->nick, callerUser->nick, callerUser->username, callerUser->host);
 
 			send_globops(s_NickServ, "\2%s\2 UNFROZE nickname \2%s\2", callerUser->nick, ni->nick);
 		}
 		else {
 
 			LOG_SNOOP(s_OperServ, "NS -Z %s -- by %s (%s@%s) through %s", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
-			log_services(LOG_SERVICES_NICKSERV_GENERAL, "-Z %s -- by %s (%s@%s) through %s", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName); 
+			log_services(LOG_SERVICES_NICKSERV_GENERAL, "-Z %s -- by %s (%s@%s) through %s", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
 
 			send_globops(s_NickServ, "\2%s\2 (through \2%s\2) UNFROZE nickname \2%s\2", callerUser->nick, data->operName, ni->nick);
 		}
@@ -4283,13 +4427,13 @@ static void do_unfreeze(CSTR source, User *callerUser, ServiceCommandData *data)
 /*********************************************************/
 
 static void do_hold(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_HOLD);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_FLAG_SYNTAX_ERROR, "HOLD");
@@ -4329,7 +4473,7 @@ static void do_hold(CSTR source, User *callerUser, ServiceCommandData *data) {
 
 		TRACE_MAIN();
 		AddFlag(ni->flags, NI_HOLD);
-		
+
 		if (ni->hold)
 			mem_free(ni->hold);
 		ni->hold = str_duplicate(data->operName);
@@ -4359,13 +4503,13 @@ static void do_hold(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_unhold(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_UNHOLD);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_FLAG_SYNTAX_ERROR, "UNHOLD");
@@ -4435,13 +4579,13 @@ static void do_unhold(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_mark(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_MARK);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_FLAG_SYNTAX_ERROR, "MARK");
@@ -4511,13 +4655,13 @@ static void do_mark(CSTR source, User *callerUser, ServiceCommandData *data) {
 /*********************************************************/
 
 static void do_unmark(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	const char *nick;
 	NickInfo *ni;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_UNMARK);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_FLAG_SYNTAX_ERROR, "UNMARK");
@@ -4635,6 +4779,7 @@ static void do_authnick(CSTR source, User *callerUser, ServiceCommandData *data)
 			User *user;
 
 			RemoveFlag(ni->flags, NI_AUTH);
+			RemoveFlag(ni->flags, NI_PASSRESET);
 			RemoveFlag(ni->flags, NI_MAILCHANGE);
 			RemoveFlag(ni->flags, NI_DROP);
 			RemoveFlag(ni->flags, NI_NOMAIL);
@@ -4688,13 +4833,13 @@ static void do_authnick(CSTR source, User *callerUser, ServiceCommandData *data)
 /*********************************************************/
 
 static void do_authreset(CSTR source, User *callerUser, ServiceCommandData *data) {
-	
+
 	NickInfo *ni;
 	const char *nick;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_AUTHRESET);
-	
+
 	if (IS_NULL(nick = strtok(NULL, " "))) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_AUTHRESET_SYNTAX_ERROR);
@@ -4721,6 +4866,7 @@ static void do_authreset(CSTR source, User *callerUser, ServiceCommandData *data
 			TRACE_MAIN();
 			AddFlag(ni->flags, NI_AUTH);
 			RemoveFlag(ni->flags, NI_DROP);
+			RemoveFlag(ni->flags, NI_PASSRESET);
 			RemoveFlag(ni->flags, NI_MAILCHANGE);
 			RemoveFlag(ni->flags, NI_NOMAIL);
 
@@ -4801,6 +4947,29 @@ static void do_authreset(CSTR source, User *callerUser, ServiceCommandData *data
 				log_services(LOG_SERVICES_NICKSERV_GENERAL, "AR %s -- by %s (%s@%s) through %s [Drop]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
 
 				send_globops(s_NickServ, "\2%s\2 (through \2%s\2) removed Drop status for nickname \2%s\2", callerUser->nick, data->operName, ni->nick);
+			}
+
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_AUTHRESET_AUTH_RESET, ni->nick);
+		}
+		else if (str_equals_nocase(what, "PASSRESET")) {
+
+			RemoveFlag(ni->flags, NI_PASSRESET);
+			ni->auth = 0;
+			ni->last_email_request = 0;
+
+			if (data->operMatch) {
+
+				LOG_SNOOP(s_OperServ, "NS PR %s -- by %s (%s@%s) [Pass Reset]", ni->nick, callerUser->nick, callerUser->username, callerUser->host);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "PR %s -- by %s (%s@%s) [Pass Reset]", ni->nick, callerUser->nick, callerUser->username, callerUser->host);
+
+				send_globops(s_NickServ, "\2%s\2 removed Pass Reset status for nickname \2%s\2", callerUser->nick, ni->nick);
+			}
+			else {
+
+				LOG_SNOOP(s_OperServ, "NS PR %s -- by %s (%s@%s) through %s [Pass Reset]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
+				log_services(LOG_SERVICES_NICKSERV_GENERAL, "PR %s -- by %s (%s@%s) through %s [Pass Reset]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName);
+
+				send_globops(s_NickServ, "\2%s\2 (through \2%s\2) removed Pass Reset status for nickname \2%s\2", callerUser->nick, data->operName, ni->nick);
 			}
 
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_AUTHRESET_AUTH_RESET, ni->nick);
@@ -5197,7 +5366,7 @@ static void do_listreg(CSTR source, User *callerUser, ServiceCommandData *data) 
 		end = "+50";
 
 	TRACE_MAIN();
-	
+
 	/* Intervallo */
 	start_line = strtoul(start, NULL, 10);
 
@@ -5233,7 +5402,7 @@ static void do_listreg(CSTR source, User *callerUser, ServiceCommandData *data) 
 						else
 							send_notice_to_user(s_NickServ, callerUser, "%d) \2%s\2 [%s]", line, ni->nick, ni->last_usermask);
 						break;
-					
+
 					case LR_OUT_REALNAME:
 						send_notice_to_user(s_NickServ, callerUser, "%d) \2%s\2 [%s] [Real Name: %s]", line, ni->nick, ni->last_usermask, ni->last_realname);
 						break;
@@ -5331,7 +5500,7 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 	if (str_equals_nocase(what, "PASS")) {
 
-		const char *newpass;
+		const char *newpass, *crypted_newpass;
 
 		if (IS_NULL(newpass = strtok(NULL, " "))) {
 
@@ -5351,29 +5520,30 @@ static void do_nickset(CSTR source, User *callerUser, ServiceCommandData *data) 
 			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), CSNS_ERROR_PASSWORD_AS_PASS);
 
 		else {
+			crypted_newpass = crypt_password(newpass);
 
-			if (str_not_equals(ni->pass, newpass)) {
+			if (!verify_hashed_password(crypted_newpass, ni->pass)) {
 
 				TRACE_MAIN();
 
 				if (data->operMatch) {
 
-					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass, newpass);
-					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, ni->pass, newpass);
+					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ni->pass), password_to_hex(crypted_newpass));
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ni->pass), password_to_hex(crypted_newpass));
 
 					send_globops(s_NickServ, "\2%s\2 changed nick password for \2%s\2", callerUser->nick, ni->nick);
 				}
 				else {
 
-					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass, newpass);
-					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, ni->pass, newpass);
+					LOG_SNOOP(s_OperServ, "NS N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ni->pass), password_to_hex(crypted_newpass));
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "N %s -- by %s (%s@%s) through %s [P: %s -> %s]", ni->nick, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ni->pass), password_to_hex(crypted_newpass));
 
 					send_globops(s_NickServ, "\2%s\2 (through \2%s\2) changed nick password for \2%s\2", callerUser->nick, data->operName, ni->nick);
 				}
 
 				send_notice_to_user(s_NickServ, callerUser, "Password for \2%s\2 set to: %s", ni->nick, newpass);
 
-				str_copy_checked(newpass, ni->pass, PASSMAX);
+				set_hashed_password(ni->pass, crypted_newpass);
 
 				user_remove_id(nick, FALSE);
 			}
@@ -5672,6 +5842,7 @@ static char *get_nick_flags(long int flags) {
 	APPEND_FLAG(flags, NI_TIMEOUT, "NI_TIMEOUT")
 	APPEND_FLAG(flags, NI_ENFORCE, "NI_ENFORCE")
 	APPEND_FLAG(flags, NI_MAILCHANGE, "NI_MAILCHANGE")
+	APPEND_FLAG(flags, NI_PASSRESET, "NI_PASSRESET")
 	APPEND_FLAG(flags, NI_DROP, "NI_DROP")
 	APPEND_FLAG(flags, NI_ENFORCED, "NI_ENFORCED")
 	APPEND_FLAG(flags, NI_NOWELCOME, "NI_NOWELCOME")
@@ -5717,7 +5888,7 @@ void nickserv_ds_dump(CSTR sourceNick, const User *callerUser, STR request) {
 
 					send_notice_to_user(sourceNick, callerUser, "Address 0x%08X, size %d B",						(unsigned long)ni, sizeof(NickInfo));
 					send_notice_to_user(sourceNick, callerUser, "Name: %s",											ni->nick);
-					send_notice_to_user(sourceNick, callerUser, "Password: %s",										ni->pass);
+					send_notice_to_user(sourceNick, callerUser, "Password: %s",										password_to_hex(ni->pass));
 					send_notice_to_user(sourceNick, callerUser, "Last Mask: 0x%08X \2[\2%s\2]\2",					(unsigned long)ni->last_usermask, str_get_valid_display_value(ni->last_usermask));
 					send_notice_to_user(sourceNick, callerUser, "Last Real Name: 0x%08X \2[\2%s\2]\2",				(unsigned long)ni->last_realname, str_get_valid_display_value(ni->last_realname));
 					send_notice_to_user(sourceNick, callerUser, "Registration C-time: %d",							ni->time_registered);
@@ -5787,7 +5958,7 @@ void nickserv_ds_dump(CSTR sourceNick, const User *callerUser, STR request) {
 			}
 
 			LOG_DEBUG_SNOOP("Command: DUMP NICKSERV GUL -- by %s (%s@%s)", callerUser->nick, callerUser->username, callerUser->host);
-		
+
 		#ifdef FIX_USE_MPOOL
 		} else if (str_equals_nocase(cmd, "POOL")) {
 

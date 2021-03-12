@@ -257,6 +257,7 @@ void timeout_check(const time_t now) {
  *********************************************************/
 
 time_t				time_next_midnight;
+time_t				time_next_quarter_hourly;
 int					time_today_day, time_today_month, time_today_year, time_today_wday;
 
 
@@ -276,6 +277,8 @@ void time_init() {
 	ltm = localtime(&now);
 
 	NOW = now;
+
+	time_next_quarter_hourly = now + FIFTEEN_MINUTES;
 
 	if (IS_NOT_NULL(ltm)) {
 
@@ -298,6 +301,12 @@ void time_init() {
 /*********************************************************/
 
 void time_check(const time_t now) {
+
+	if (now >= time_next_quarter_hourly) {
+		nickserv_quarter_hourly_expire();
+
+		time_next_quarter_hourly += FIFTEEN_MINUTES;
+	}
 
 	if (now >= time_next_midnight) {
 

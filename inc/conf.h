@@ -107,6 +107,7 @@ extern long int CONF_DEF_MLOCKOFF;
 extern BOOL CONF_FORCE_AUTH;
 extern int CONF_AUTHDEL_DAYS;
 extern BOOL CONF_SHOW_TAGLINES;
+extern char *CONF_PASSWORD_SALT;
 
 extern float CONF_AKILL_PERCENT;
 extern time_t CONF_DEFAULT_AKILL_EXPIRY;

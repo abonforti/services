@@ -2832,6 +2832,7 @@ void cs_remove_nick(CSTR nick) {
 
 					/* Change the channel password to the new (random) one. */
 					snprintf(ci->founderpass, sizeof(ci->founderpass), "%s-%lu", CRYPT_NETNAME, randID);
+					set_hashed_password(ci->founderpass, crypt_password(ci->founderpass));
 
 					/* Notify the new owner about it via memo. */
 					snprintf(memoText, sizeof(memoText), lang_msg(EXTRACT_LANG_ID(ni->langID), CS_SET_FOUNDER_SUCCESSOR), ci->name, CRYPT_NETNAME, randID);
@@ -3092,7 +3093,7 @@ static char cs_get_verbose_level_name(const ChannelInfo *ci) {
 
 static void do_register(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *chan, *pass, *desc;
+	const char *chan, *pass, *desc, *crypted_password;
 	ChannelInfo *ci;
 	Channel *channel;
 	RESERVED_RESULT reserved;
@@ -3242,7 +3243,8 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 
 		snprintf(ci->real_founder, size, "%s (%s@%s)", source, callerUser->username, callerUser->host);
 
-		str_copy_checked(pass, ci->founderpass, PASSMAX);
+		crypted_password = crypt_password(pass);
+		set_hashed_password(ci->founderpass, crypted_password);
 		ci->desc = str_duplicate(desc);
 
 		ci->langID = callerUser->ni->langID;
@@ -3261,7 +3263,7 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 		++(callerUser->ni->channelcount);
 
 		LOG_SNOOP(s_OperServ, "CS R %s -- by %s (%s@%s)", chan, callerUser->nick, callerUser->username, callerUser->host);
-		log_services(LOG_SERVICES_CHANSERV_GENERAL, "R %s -- by %s (%s@%s) [Password: %s ]", chan, callerUser->nick, callerUser->username, callerUser->host, ci->founderpass);
+		log_services(LOG_SERVICES_CHANSERV_GENERAL, "R %s -- by %s (%s@%s) [Password: %s ]", chan, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(crypted_password));
 
 		send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CS_REGISTER_REG_OK_1, chan, source);
 		send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CS_REGISTER_REG_OK_2, pass);
@@ -3286,7 +3288,7 @@ static void do_register(CSTR source, User *callerUser, ServiceCommandData *data)
 
 static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data) {
 	
-	const char *chan, *pass;
+	const char *chan, *pass, *crypted_password;
 	ChannelInfo *ci;
 	NickInfo *ni;
 
@@ -3319,8 +3321,9 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CS_ERROR_FOUNDER_FROZEN, ci->name);
 
 	else {
+		crypted_password = crypt_password(pass);
 
-		if (str_equals(pass, ci->founderpass)) {
+		if (verify_hashed_password(crypted_password, ci->founderpass)) {
 
 			TRACE_MAIN();
 			if (!is_identified(callerUser, ci))
@@ -3330,16 +3333,16 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 				RemoveFlag(ci->flags, CI_REMIND);
 
 			if (CONF_SET_EXTRASNOOP)
-				LOG_SNOOP(s_OperServ, "CS I %s -- by %s (%s@%s) [%s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, pass);
+				LOG_SNOOP(s_OperServ, "CS I %s -- by %s (%s@%s) [%s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(crypted_password));
 
-			log_services(LOG_SERVICES_CHANSERV_ID, "I %s -- by %s (%s@%s) [%s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, pass);
+			log_services(LOG_SERVICES_CHANSERV_ID, "I %s -- by %s (%s@%s) [%s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(crypted_password));
 
 			send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CS_IDENTIFY_ID_OK, chan);
 		}
 		else {
 
-			LOG_SNOOP(s_OperServ, "CS *I %s -- by %s (%s@%s) [%s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, pass);
-			log_services(LOG_SERVICES_CHANSERV_ID, "*I %s -- by %s (%s@%s) [%s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, pass);
+			LOG_SNOOP(s_OperServ, "CS *I %s -- by %s (%s@%s) [%s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(crypted_password));
+			log_services(LOG_SERVICES_CHANSERV_ID, "*I %s -- by %s (%s@%s) [%s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(crypted_password));
 
 			send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CS_ERROR_BAD_PASS, ci->name);
 
@@ -4040,10 +4043,11 @@ static void do_set_founder(User *callerUser, ChannelInfo *ci, CSTR param, CSTR a
 
 		/* Log this action. */
 		LOG_SNOOP(s_OperServ, "CS F %s -- by %s (%s@%s) [%s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founder, newFounder->nick);
-		log_services(LOG_SERVICES_CHANSERV_GENERAL, "F %s -- by %s (%s@%s) [%s -> %s] [P: %s -> %s-%lu]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founder, newFounder->nick, ci->founderpass, CRYPT_NETNAME, randID);
+		log_services(LOG_SERVICES_CHANSERV_GENERAL, "F %s -- by %s (%s@%s) [%s -> %s] [P: %s -> %s-%lu]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founder, newFounder->nick, password_to_hex(ci->founderpass), CRYPT_NETNAME, randID);
 
 		/* Change the channel password to the new (random) one. */
 		snprintf(ci->founderpass, sizeof(ci->founderpass), "%s-%lu", CRYPT_NETNAME, randID);
+		set_hashed_password(ci->founderpass, crypt_password(ci->founderpass));
 
 		/* Notify the new owner about it via memo. */
 		snprintf(memoText, sizeof(memoText), lang_msg(EXTRACT_LANG_ID(newFounder->langID), CS_SET_FOUNDER_CHANGED_NEW), ci->founder, ci->name, CRYPT_NETNAME, randID);
@@ -4100,12 +4104,16 @@ static void do_set_founder(User *callerUser, ChannelInfo *ci, CSTR param, CSTR a
 static void do_set_password(User *callerUser, ChannelInfo *ci, CSTR param, CSTR accessName, const int accessMatch) {
 	
 	char	*newpass;
+	char	*crypted_newpass;
+	char	*crypted_oldpass;
 
 	TRACE_MAIN_FCLT(FACILITY_CHANSERV_HANDLE_SET_PASSWORD);
 
 	if (param && (newpass = strchr(param, ' '))) {
 
 		*newpass++ = 0;
+
+		crypted_newpass = crypt_password(newpass);
 
 		TRACE_MAIN();
 		if (strchr(newpass, ' '))
@@ -4130,17 +4138,19 @@ static void do_set_password(User *callerUser, ChannelInfo *ci, CSTR param, CSTR 
 
 			/* param == vecchia password */
 
-			if (str_equals(param, ci->founderpass)) {
+			crypted_oldpass = crypt_password(param);
 
-				if (str_not_equals(param, newpass)) {
+			if (verify_hashed_password(crypted_oldpass, ci->founderpass)) {
+
+				if (!verify_hashed_password(crypted_oldpass, crypted_newpass)) {
 
 					TRACE_MAIN();
 					if (CONF_SET_EXTRASNOOP)
-						LOG_SNOOP(s_OperServ, "CS P %s -- by %s (%s@%s) [%s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founderpass, newpass);
+						LOG_SNOOP(s_OperServ, "CS P %s -- by %s (%s@%s) [%s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ci->founderpass), password_to_hex(crypted_newpass));
 					else
 						LOG_SNOOP(s_OperServ, "CS P %s -- by %s (%s@%s) [Logged]", ci->name, callerUser->nick, callerUser->username, callerUser->host);
 
-					log_services(LOG_SERVICES_CHANSERV_GENERAL, "P %s -- by %s (%s@%s) [%s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founderpass, newpass);
+					log_services(LOG_SERVICES_CHANSERV_GENERAL, "P %s -- by %s (%s@%s) [%s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ci->founderpass), password_to_hex(crypted_newpass));
 					send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CS_SET_PASSWD_PASSWORD_CHANGED, ci->name, newpass);
 
 					str_copy_checked(newpass, ci->founderpass, PASSMAX);
@@ -4159,8 +4169,8 @@ static void do_set_password(User *callerUser, ChannelInfo *ci, CSTR param, CSTR 
 			else {
 
 				TRACE_MAIN();
-				LOG_SNOOP(s_OperServ, "CS *P %s -- by %s (%s@%s) [Wrong Old Pass: %s ]", ci->name, callerUser->nick, callerUser->username, callerUser->host, param);
-				log_services(LOG_SERVICES_CHANSERV_GENERAL, "*P %s -- by %s (%s@%s) [Old Pass: %s - Given: %s ]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founderpass, param);
+				LOG_SNOOP(s_OperServ, "CS *P %s -- by %s (%s@%s) [Wrong Old Pass: %s ]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(crypted_oldpass));
+				log_services(LOG_SERVICES_CHANSERV_GENERAL, "*P %s -- by %s (%s@%s) [Old Pass: %s - Given: %s ]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ci->founderpass), password_to_hex(crypted_oldpass));
 
 				send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CS_SET_PASSWD_ERROR_WRONG_OLD_PASS, ci->name);
 
@@ -9307,19 +9317,19 @@ static void do_getpass(CSTR source, User *callerUser, ServiceCommandData *data) 
 			if (data->operMatch) {
 
 				LOG_SNOOP(s_OperServ, "CS G %s -- by %s (%s@%s) [SRA->MARK]", ci->name, callerUser->nick, callerUser->username, callerUser->host);
-				log_services(LOG_SERVICES_CHANSERV_GENERAL, "G %s -- by %s (%s@%s) [SRA->MARK - Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founderpass);
+				log_services(LOG_SERVICES_CHANSERV_GENERAL, "G %s -- by %s (%s@%s) [SRA->MARK - Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ci->founderpass));
 
 				send_globops(s_ChanServ, "\2%s\2 used GETPASS on MARKED channel \2%s\2", callerUser->nick, ci->name);
 			}
 			else {
 
 				LOG_SNOOP(s_OperServ, "CS G %s -- by %s (%s@%s) through %s [SRA->MARK]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName);
-				log_services(LOG_SERVICES_CHANSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [SRA->MARK - Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, ci->founderpass);
+				log_services(LOG_SERVICES_CHANSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [SRA->MARK - Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ci->founderpass));
 
 				send_globops(s_ChanServ, "\2%s\2 (through \2%s\2) used GETPASS on MARKED channel \2%s\2", callerUser->nick, data->operName, ci->name);
 			}
 
-			send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ci->name, ci->founderpass);
+			send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ci->name, password_to_hex(ci->founderpass));
 			return;
 		}
 
@@ -9328,19 +9338,19 @@ static void do_getpass(CSTR source, User *callerUser, ServiceCommandData *data) 
 		if (data->operMatch) {
 
 			LOG_SNOOP(s_OperServ, "CS G %s -- by %s (%s@%s)", ci->name, callerUser->nick, callerUser->username, callerUser->host);
-			log_services(LOG_SERVICES_CHANSERV_GENERAL, "G %s -- by %s (%s@%s) [Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founderpass);
+			log_services(LOG_SERVICES_CHANSERV_GENERAL, "G %s -- by %s (%s@%s) [Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ci->founderpass));
 
 			send_globops(s_ChanServ, "\2%s\2 used GETPASS on channel \2%s\2", source, ci->name);
 		}
 		else {
 
 			LOG_SNOOP(s_OperServ, "CS G %s -- by %s (%s@%s) through %s", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName);
-			log_services(LOG_SERVICES_CHANSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, ci->founderpass);
+			log_services(LOG_SERVICES_CHANSERV_GENERAL, "G %s -- by %s (%s@%s) through %s [Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ci->founderpass));
 
 			send_globops(s_ChanServ, "\2%s\2 (through \2%s\2) used GETPASS on channel \2%s\2", source, data->operName, ci->name);
 		}
 
-		send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ci->name, ci->founderpass);
+		send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CSNS_GETPASS_SHOW_PASSWORD, ci->name, password_to_hex(ci->founderpass));
 	}
 }
 
@@ -9348,7 +9358,7 @@ static void do_getpass(CSTR source, User *callerUser, ServiceCommandData *data) 
 
 static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *chan = strtok(NULL, " ");
+	const char *chan = strtok(NULL, " "), *plain_pass, *crypted_pass;
 	ChannelInfo *ci;
 	NickInfo *ni;
 
@@ -9408,24 +9418,29 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 		if (data->operMatch) {
 
 			LOG_SNOOP(s_OperServ, "CS S %s -- by %s (%s@%s)", ci->name, callerUser->nick, callerUser->username, callerUser->host);
-			log_services(LOG_SERVICES_CHANSERV_GENERAL, "S %s -- by %s (%s@%s) [Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founderpass);
+			log_services(LOG_SERVICES_CHANSERV_GENERAL, "S %s -- by %s (%s@%s) [Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ci->founderpass));
 
 			send_globops(s_ChanServ, "\2%s\2 used SENDPASS on channel \2%s\2", source, ci->name);
 		}
 		else {
 
 			LOG_SNOOP(s_OperServ, "CS S %s -- by %s (%s@%s) through %s", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName);
-			log_services(LOG_SERVICES_CHANSERV_GENERAL, "S %s -- by %s (%s@%s) through %s [Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, ci->founderpass);
+			log_services(LOG_SERVICES_CHANSERV_GENERAL, "S %s -- by %s (%s@%s) through %s [Pass: %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ci->founderpass));
 
 			send_globops(s_ChanServ, "\2%s\2 (through \2%s\2) used SENDPASS on channel \2%s\2", source, data->operName, ci->name);
 		}
 
-    /* Change the password to a random one. */
+	    /* Change the password to a random one. */
 		srand(randomseed());
 		randID = (NOW + getrandom(1, 99999) * getrandom(1, 9999));
 
-    /* Change the channel password to the new (random) one. */
+    	/* Change the channel password to the new (random) one. */
 		snprintf(ci->founderpass, sizeof(ci->founderpass), "%s-%lu", CRYPT_NETNAME, randID);
+
+		plain_pass = ci->founderpass;
+		crypted_pass = crypt_password(ci->founderpass);
+
+		set_hashed_password(ci->founderpass, crypted_pass);
 
 		send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CSNS_SENDPASS_PASSWORD_SENT, ci->founder, ni->email);
 
@@ -9440,7 +9455,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 
 			lang_format_localtime(timebuf, sizeof(timebuf), GetCallerLang(), TIME_FORMAT_DATETIME, NOW);
 
-			fprintf(mailfile, lang_msg(GetNickLang(ni), CS_SENDPASS_EMAIL_TEXT), data->operName, timebuf, ci->name, ci->founderpass);
+			fprintf(mailfile, lang_msg(GetNickLang(ni), CS_SENDPASS_EMAIL_TEXT), data->operName, timebuf, ci->name, plain_pass);
 			fprintf(mailfile, lang_msg(GetNickLang(ni), CSNS_EMAIL_TEXT_ABUSE), MAIL_ABUSE, CONF_NETWORK_NAME);
 			fclose(mailfile);
 
@@ -10730,20 +10745,21 @@ static void do_chanset(CSTR source, User *callerUser, ServiceCommandData *data) 
 			if (data->operMatch) {
 
 				LOG_SNOOP(s_OperServ, "CS T %s -- by %s (%s@%s) [F: %s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founder, ni->nick);
-				log_services(LOG_SERVICES_CHANSERV_GENERAL, "T %s -- by %s (%s@%s) [F: %s -> %s] [P: %s -> %s-%lu]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founder, ni->nick, ci->founderpass, CRYPT_NETNAME, randID);
+				log_services(LOG_SERVICES_CHANSERV_GENERAL, "T %s -- by %s (%s@%s) [F: %s -> %s] [P: %s -> %s-%lu]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founder, ni->nick, password_to_hex(ci->founderpass), CRYPT_NETNAME, randID);
 
 				send_globops(s_ChanServ, "\2%s\2 changed the founder of \2%s\2 to \2%s\2", callerUser->nick, ci->name, ni->nick);
 			}
 			else {
 
 				LOG_SNOOP(s_OperServ, "CS T %s -- by %s (%s@%s) through %s [F: %s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, ci->founder, ni->nick);
-				log_services(LOG_SERVICES_CHANSERV_GENERAL, "T %s -- by %s (%s@%s) through %s [F: %s -> %s] [P: %s -> %lu]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, ci->founder, ni->nick, ci->founderpass, CRYPT_NETNAME, randID);
+				log_services(LOG_SERVICES_CHANSERV_GENERAL, "T %s -- by %s (%s@%s) through %s [F: %s -> %s] [P: %s -> %lu]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, ci->founder, ni->nick, password_to_hex(ci->founderpass), CRYPT_NETNAME, randID);
 
 				send_globops(s_ChanServ, "\2%s\2 (through \2%s\2) changed the founder of \2%s\2 to \2%s\2", callerUser->nick, data->operName, ci->name, ni->nick);
 			}
 
 			/* Now actually change the password. */
 			snprintf(ci->founderpass, sizeof(ci->founderpass), "%s-%lu", CRYPT_NETNAME, randID);
+			set_hashed_password(ci->founderpass, crypt_password(ci->founderpass));
 
 			/* Update the Real Founder info. */
 			mem_free(ci->real_founder);
@@ -10808,6 +10824,9 @@ static void do_chanset(CSTR source, User *callerUser, ServiceCommandData *data) 
 		str_equals_nocase(command, "PASSWORD")) {
 
 		char *newpass = strtok(NULL, " ");
+		char *crypted_newpass;
+
+		crypted_newpass = crypt_password(newpass);
 
 		if (IS_NULL(newpass)) {
 
@@ -10829,22 +10848,22 @@ static void do_chanset(CSTR source, User *callerUser, ServiceCommandData *data) 
 		else if (str_match_wild_nocase(newpass, chan+1) || (str_len(newpass) < 5) || str_equals_nocase(chan, newpass))
 			send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CSNS_ERROR_INSECURE_PASSWORD);
 
-		else if (str_equals(newpass, ci->founderpass))
+		else if (verify_hashed_password(crypted_newpass, ci->founderpass))
 			send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), CSNS_ERROR_SAME_PASSWORD);
 
 		else {
 
 			if (data->operMatch) {
 
-				LOG_SNOOP(s_OperServ, "CS T %s -- by %s (%s@%s) [P: %s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founderpass, newpass);
-				log_services(LOG_SERVICES_CHANSERV_GENERAL, "T %s -- by %s (%s@%s) [P: %s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, ci->founderpass, newpass);
+				LOG_SNOOP(s_OperServ, "CS T %s -- by %s (%s@%s) [P: %s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ci->founderpass), crypted_newpass);
+				log_services(LOG_SERVICES_CHANSERV_GENERAL, "T %s -- by %s (%s@%s) [P: %s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(ci->founderpass), crypted_newpass);
 
 				send_globops(s_ChanServ, "\2%s\2 changed channel password for \2%s\2", callerUser->nick, ci->name);
 			}
 			else {
 
-				LOG_SNOOP(s_OperServ, "CS T %s -- by %s (%s@%s) through %s [P: %s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, ci->founderpass, newpass);
-				log_services(LOG_SERVICES_CHANSERV_GENERAL, "T %s -- by %s (%s@%s) through %s [P: %s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, ci->founderpass, newpass);
+				LOG_SNOOP(s_OperServ, "CS T %s -- by %s (%s@%s) through %s [P: %s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ci->founderpass), crypted_newpass);
+				log_services(LOG_SERVICES_CHANSERV_GENERAL, "T %s -- by %s (%s@%s) through %s [P: %s -> %s]", ci->name, callerUser->nick, callerUser->username, callerUser->host, data->operName, password_to_hex(ci->founderpass), crypted_newpass);
 
 				send_globops(s_ChanServ, "\2%s\2 (through \2%s\2) changed channel password for \2%s\2", callerUser->nick, data->operName, ci->name);
 			}
@@ -10854,7 +10873,7 @@ static void do_chanset(CSTR source, User *callerUser, ServiceCommandData *data) 
 			if (CONF_SET_READONLY)
 				send_notice_lang_to_user(s_ChanServ, callerUser, GetCallerLang(), WARNING_READONLY);
 
-			str_copy_checked(newpass, ci->founderpass, PASSMAX);
+			set_hashed_password(ci->founderpass, crypted_newpass);
 
 			user_remove_chanid(ci);
 		}
@@ -11824,7 +11843,7 @@ void chanserv_ds_dump(CSTR sourceNick, const User *callerUser, STR request) {
 					send_notice_to_user(sourceNick, callerUser, "Address 0x%08X, size %d B",						(unsigned long)ci, sizeof(ChannelInfo));
 					send_notice_to_user(sourceNick, callerUser, "Name: %s",											ci->name);
 					send_notice_to_user(sourceNick, callerUser, "Founder: %s",										ci->founder);
-					send_notice_to_user(sourceNick, callerUser, "Password: %s",										ci->founderpass);
+					send_notice_to_user(sourceNick, callerUser, "Password: %s",										password_to_hex(ci->founderpass));
 					send_notice_to_user(sourceNick, callerUser, "Description: 0x%08X \2[\2%s\2]\2",					(unsigned long)ci->desc, str_get_valid_display_value(ci->desc));
 					send_notice_to_user(sourceNick, callerUser, "Registration C-time: %d",							ci->time_registered);
 					send_notice_to_user(sourceNick, callerUser, "Last used C-time: %d",								ci->last_used);

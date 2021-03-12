@@ -60,7 +60,7 @@ typedef	unsigned int			result_t;
 #define ONE_HOUR		3600
 #define ONE_DAY			86400
 #define ONE_WEEK		604800
-
+#define FIFTEEN_MINUTES 900
 
 /*********************************************************
  * Macro                                                 *

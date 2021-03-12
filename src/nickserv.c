@@ -2250,7 +2250,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 
 					log_services(LOG_SERVICES_NICKSERV_GENERAL, "P %s -- by %s (%s@%s) [%s -> %s]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(callerUser->ni->pass), password_to_hex(crypted_newpass));
 
-					send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_PASSWORD_CHANGED, callerUser->ni->nick, password_to_hex(crypted_newpass));
+					send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_PASSWORD_CHANGED, callerUser->ni->nick, newpass);
 
 					set_hashed_password(callerUser->ni->pass, crypted_newpass);
 

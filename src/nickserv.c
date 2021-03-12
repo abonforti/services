@@ -2192,7 +2192,7 @@ static void do_set_password(User *callerUser, CSTR param) {
 				char *err;
 				time_t expireTime = callerUser->ni->last_email_request + FIFTEEN_MINUTES;
 
-				authcode = strtoul(auth, &err, 10);
+				authcode = strtoul(param, &err, 10);
 
 				if ((*err == '\0') && (authcode != 0) && (authcode == callerUser->ni->auth) && NOW < expireTime) {
 					mem_free(crypted_oldpass);

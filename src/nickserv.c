@@ -1635,7 +1635,8 @@ static void do_auth(CSTR source, User *callerUser, ServiceCommandData *data) {
 
 static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	char		*nick, *pass;
+	char		*nick, *pass, *err;
+	unsigned long int authcode;
 	NickInfo	*ni;
 	BOOL		sameNick = FALSE, freeMe = FALSE, isPassResetCodeCorrect = FALSE;
 
@@ -1647,6 +1648,16 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_SYNTAX_ERROR);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), GET_MORE_INFO_ON_COMMAND, s_NS, "IDENTIFY");
 		return;
+	}
+
+	if (FlagSet(ni->flags, NI_PASSRESET)) {
+		time_t expireTime = callerUser->ni->last_email_request + FIFTEEN_MINUTES;
+
+		authcode = strtoul(pass, &err, 10);
+
+		if ((*err == '\0') && (authcode != 0) && (authcode == ni->auth) && NOW < expireTime) {
+			isPassResetCodeCorrect = TRUE;
+		}
 	}
 
 	if (IS_NOT_NULL(pass = strtok(NULL, " "))) {
@@ -1693,19 +1704,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FORBIDDEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
 	}
-	else if (FlagSet(ni->flags, NI_PASSRESET)) {
-		unsigned long int authcode;
-		char *err;
-		time_t expireTime = callerUser->ni->last_email_request + FIFTEEN_MINUTES;
-
-		authcode = strtoul(param, &err, 10);
-
-		if ((*err == '\0') && (authcode != 0) && (authcode == ni->auth) && NOW < expireTime) {
-			isPassResetCodeCorrect = TRUE;
-		}
-	}
-
-	if (FlagSet(ni->flags, NI_PASSRESET) && !isPassResetCodeCorrect) {
+	else if (FlagSet(ni->flags, NI_PASSRESET) && !isPassResetCodeCorrect) {
 		TRACE_MAIN();
 		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : authcode);
 		log_services(LOG_SERVICES_NICKSERV_ID, "*I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, authcode);
@@ -1713,8 +1712,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, nick);
 
 		update_invalid_password_count(callerUser, s_NickServ, nick);
-	}
-	else if (FlagUnset(ni->flags, NI_PASSRESET) && !verify_hashed_password(crypt_password(pass), ni->pass)) {
+	} else if (FlagUnset(ni->flags, NI_PASSRESET) && !verify_hashed_password(crypt_password(pass), ni->pass)) {
 
 		TRACE_MAIN();
 		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%s]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));

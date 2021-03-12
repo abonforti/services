@@ -1592,9 +1592,17 @@ NS_SENDPASS_EMAIL_SUBJECT
 	Subject: Mot de passe du nick %s
 	
 NS_SENDPASS_EMAIL_TEXT
-	Demande de mot de passe envoy�e par: %s
-	Re�ue: %s
-	Le mot de passe du nick %s est: %s
+	Demande de réinitialisation du mot de passe pour le pseudo %s envoyée par: %s
+	Reçu le: %s
+	
+	Pour réinitialiser le mot de passe de votre pseudo, identifiez votre pseudo à l'aide du code temporaire suivant:
+	/ID NS %s %s
+	
+	Une fois identifié, vous devrez continuer en définissant votre pseudo et en changeant le mot de passe temporaire en un
+	mot de passe de votre choix, à l'aide des commandes suivantes:
+	
+	/NICK %s
+	/NS SET PASSWD %s <mot de passe-votre-choisi>
 	
 NS_SENDPASS_ERROR_NICK_NOT_AUTH
 	User %s has not authorized via email.
@@ -1858,6 +1866,6 @@ NS_DROP_ERROR_RESETPASS_ON
 NS_SET_EMAIL_ERROR_PASSRESET_ON
 	Vous ne pouvez pas demander de changement d'e-mail tant que la réinitialisation de votre mot de passe n'est pas terminée ou expirée.
 NS_INFO_PASSRESET_REQUEST
-	* Ce pseudo a demandé une réinitialisation du mot de passe.
+	 * Ce pseudo a demandé une réinitialisation du mot de passe.
 NS_IDENTIFY_PASSRESET_REMINDER
 	Attention: terminez la réinitialisation de votre mot de passe dans les %d minutes avec les commandes suivante: /NICK %s /NS SET PASSWD %s <mot-de-passe-de-votre-choix>

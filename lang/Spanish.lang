@@ -1592,9 +1592,17 @@ NS_SENDPASS_EMAIL_SUBJECT
 	Subject: Contrase�a del nick %s
 	
 NS_SENDPASS_EMAIL_TEXT
-	Pedida de contrase�a enviada por: %s
-	Recibida: %s
-	La contrase�a del nick %s es: %s
+	Solicitud de restablecimiento de contraseña para el nick %s enviada por: %s
+	Recibido el: %s
+	
+	Para restablecer la contraseña de su nick, identifique su nick usando el siguiente código temporal:
+	/NS ID %s %s
+	
+	Una vez identificado, deberá proceder estableciendo su nick y cambiando la contraseña temporal a una
+	contraseña de su elección, usando los siguientes comandos:
+	
+	/NICK %s
+	/NS SET PASSWD %s <contraseña-su-elegido>
 	
 NS_SENDPASS_ERROR_NICK_NOT_AUTH
 	User %s has not authorized via email.
@@ -1858,6 +1866,6 @@ NS_DROP_ERROR_RESETPASS_ON
 NS_SET_EMAIL_ERROR_PASSRESET_ON
 	No puede solicitar un cambio de correo electrónico hasta que se complete o caduque su restablecimiento de contraseña.
 NS_INFO_PASSRESET_REQUEST
-	* Este nick solicitó un restablecimiento de contraseña.
+	 * Este nick solicitó un restablecimiento de contraseña.
 NS_IDENTIFY_PASSRESET_REMINDER
 	Attention: complete el restablecimiento de su contraseña en %d minutos con los siguientes comandos: /NICK %s y lesto /NS SET PASSWD %s <contraseña-de-su-elección>

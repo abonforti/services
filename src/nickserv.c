@@ -1638,7 +1638,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 	char		*nick, *pass, *err;
 	unsigned long int authcode;
 	NickInfo	*ni;
-	BOOL		sameNick = FALSE, freeMe = FALSE, isPassResetCodeCorrect = FALSE;
+	BOOL		sameNick = FALSE, freeMe = FALSE;
 
 
 	TRACE_MAIN_FCLT(FACILITY_NICKSERV_HANDLE_IDENTIFY);
@@ -1915,7 +1915,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 
 		log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%lu]", nick, source, callerUser->username, callerUser->host, authcode);
 
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_PASSRESET_REMINDER, ni->nick, 5, authcode);
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_PASSRESET_REMINDER, ni->nick, 5, pass);
 		ni->last_email_request = NOW - TEN_MINUTES;
 	}
 	else {
@@ -3872,7 +3872,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 			lang_format_localtime(timebuf, sizeof(timebuf), GetCallerLang(), TIME_FORMAT_DATETIME, NOW);
 
 			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_SUBJECT), ni->nick);
-			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_TEXT), data->operName, timebuf, ni->nick, auth_str);
+			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_TEXT), ni->nick, oper, timebuf, ni->nick, auth_str, ni->nick, auth_str););
 			fprintf(mailfile, lang_msg(GetNickLang(ni), CSNS_EMAIL_TEXT_ABUSE), MAIL_ABUSE, CONF_NETWORK_NAME);
 			fclose(mailfile);
 

@@ -3743,7 +3743,7 @@ static void do_sendcode(CSTR source, User *callerUser, ServiceCommandData *data)
 
 static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data) {
 
-	const char *nick, *crypted_pass, *plain_pass;
+	const char *nick, *crypted_pass, auth_str[11];
 	NickInfo *ni;
 
 
@@ -3825,6 +3825,8 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 		ni->auth = ni->time_registered + (getrandom(1, 99999) * getrandom(1, 9999));
 		ni->last_email_request = NOW;
 
+		snprintf(auth_str, sizeof(auth_str), "%lu", ni->auth);
+
 		AddFlag(ni->flags, NI_PASSRESET);
 
 		if (IS_NOT_NULL(mailfile = fopen("sendpass.txt", "w"))) {
@@ -3837,7 +3839,7 @@ static void do_sendpass(CSTR source, User *callerUser, ServiceCommandData *data)
 			lang_format_localtime(timebuf, sizeof(timebuf), GetCallerLang(), TIME_FORMAT_DATETIME, NOW);
 
 			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_SUBJECT), ni->nick);
-			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_TEXT), data->operName, timebuf, ni->nick, ni->auth);
+			fprintf(mailfile, lang_msg(GetNickLang(ni), NS_SENDPASS_EMAIL_TEXT), data->operName, timebuf, ni->nick, auth_str);
 			fprintf(mailfile, lang_msg(GetNickLang(ni), CSNS_EMAIL_TEXT_ABUSE), MAIL_ABUSE, CONF_NETWORK_NAME);
 			fclose(mailfile);
 

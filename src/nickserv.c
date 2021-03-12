@@ -2188,9 +2188,13 @@ static void do_set_password(User *callerUser, CSTR param) {
 			crypted_oldpass = mem_calloc(PASSHASHSIZE, sizeof(char));
 
 			if (FlagSet(callerUser->ni->flags, NI_PASSRESET)) {
+				unsigned long int authcode;
+				char *err;
 				time_t expireTime = callerUser->ni->last_email_request + FIFTEEN_MINUTES;
 
-				if (str_equals(callerUser->ni->auth, param) && NOW < expireTime) {
+				authcode = strtoul(auth, &err, 10);
+
+				if ((*err == '\0') && (authcode != 0) && (authcode == callerUser->ni->auth) && NOW < expireTime) {
 					mem_free(crypted_oldpass);
 					crypted_oldpass = callerUser->ni->pass;
 				}

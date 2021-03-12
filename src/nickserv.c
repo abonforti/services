@@ -1706,7 +1706,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 	}
 	else if (FlagSet(ni->flags, NI_PASSRESET) && !isPassResetCodeCorrect) {
 		TRACE_MAIN();
-		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : authcode);
+		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, authcode);
 		log_services(LOG_SERVICES_NICKSERV_ID, "*I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, authcode);
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, nick);

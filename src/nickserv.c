@@ -1915,7 +1915,7 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 
 		log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%lu]", nick, source, callerUser->username, callerUser->host, authcode);
 
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_PASSRESET_REMINDER, ni->nick, 5, pass);
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_PASSRESET_REMINDER, 5, ni->nick, pass);
 		ni->last_email_request = NOW - TEN_MINUTES;
 	}
 	else {

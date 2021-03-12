@@ -1853,3 +1853,9 @@ CS_EXPLIST_HEADER
 	Nick scaduti nella lista %s di %s:
 CS_SENDCODE_SYNTAX_ERROR
 	Syntax: SENDCODE #channel
+NS_DROP_ERROR_RESETPASS_ON
+	Non puoi cancellare la registrazione del tuo nick finche' il reset della password non sara' completato o scaduto.
+NS_SET_EMAIL_ERROR_PASSRESET_ON
+	Non puoi cambiare l'indirizzo E-Mail del tuo nick finche' il reset della password non sara' completato o scaduto.
+NS_INFO_PASSRESET_REQUEST
+	* Questo nick ha chiesto un reset della password.

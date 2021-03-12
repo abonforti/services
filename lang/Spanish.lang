@@ -1853,3 +1853,9 @@ CS_EXPLIST_HEADER
 	 Lista de los nick caducados en la lista de %s de %s
 CS_SENDCODE_SYNTAX_ERROR
 	Syntax: SENDCODE #channel
+NS_DROP_ERROR_RESETPASS_ON
+	No puede eliminar su nick hasta que su contraseña se complete o caduque.
+NS_SET_EMAIL_ERROR_PASSRESET_ON
+	No puede solicitar un cambio de correo electrónico hasta que se complete o caduque su restablecimiento de contraseña.
+NS_INFO_PASSRESET_REQUEST
+	* Este nick solicitó un restablecimiento de contraseña.

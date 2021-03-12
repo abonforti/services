@@ -1849,3 +1849,9 @@ CS_EXPLIST_HEADER
 	Expired nicks in the %s list of %s:
 CS_SENDCODE_SYNTAX_ERROR
 	Syntax: SENDCODE #channel
+NS_DROP_ERROR_RESETPASS_ON
+	You cannot drop your nick until your password reset is completed or expired.
+NS_SET_EMAIL_ERROR_PASSRESET_ON
+	You cannot request an E-Mail change until your password reset is completed or expired.
+NS_INFO_PASSRESET_REQUEST
+	* This nick requested a password reset.

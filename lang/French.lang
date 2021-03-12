@@ -1853,3 +1853,9 @@ CS_EXPLIST_HEADER
 	Liste des nick perimes dans la liste %s de %s
 CS_SENDCODE_SYNTAX_ERROR
 	Syntax: SENDCODE #channel
+NS_DROP_ERROR_RESETPASS_ON
+	Vous ne pouvez pas supprimer votre pseudo tant que la réinitialisation de votre mot de passe n'est pas terminée ou expirée.
+NS_SET_EMAIL_ERROR_PASSRESET_ON
+	Vous ne pouvez pas demander de changement d'e-mail tant que la réinitialisation de votre mot de passe n'est pas terminée ou expirée.
+NS_INFO_PASSRESET_REQUEST
+	* Ce pseudo a demandé une réinitialisation du mot de passe.

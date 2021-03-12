@@ -1650,16 +1650,6 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		return;
 	}
 
-	if (FlagSet(ni->flags, NI_PASSRESET)) {
-		time_t expireTime = callerUser->ni->last_email_request + FIFTEEN_MINUTES;
-
-		authcode = strtoul(pass, &err, 10);
-
-		if ((*err == '\0') && (authcode != 0) && (authcode == ni->auth) && NOW < expireTime) {
-			isPassResetCodeCorrect = TRUE;
-		}
-	}
-
 	if (IS_NOT_NULL(pass = strtok(NULL, " "))) {
 
 		if (str_len(nick) > NICKMAX) {
@@ -1691,27 +1681,41 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 	else if (str_equals_nocase(source, nick))
 		sameNick = TRUE;
 
-	if (IS_NULL(ni = findnick(nick)))
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), ERROR_NICK_NOT_REG, nick);
+	if (IS_NULL(ni = findnick(nick))) {
 
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), ERROR_NICK_NOT_REG, nick);
+		return;
+	}
 	else if (FlagSet(ni->flags, NI_FROZEN)) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FROZEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
+		return;
 	}
 	else if (FlagSet(ni->flags, NI_FORBIDDEN)) {
 
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_NICK_FORBIDDEN, ni->nick);
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), EMAIL_NETWORK_FOR_MORE_INFO, MAIL_KLINE);
+		return;
 	}
-	else if (FlagSet(ni->flags, NI_PASSRESET) && !isPassResetCodeCorrect) {
+
+	if (FlagSet(ni->flags, NI_PASSRESET)) {
 		TRACE_MAIN();
-		LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, authcode);
-		log_services(LOG_SERVICES_NICKSERV_ID, "*I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, authcode);
 
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, nick);
+		time_t expireTime = callerUser->ni->last_email_request + FIFTEEN_MINUTES;
 
-		update_invalid_password_count(callerUser, s_NickServ, nick);
+		authcode = strtoul(pass, &err, 10);
+
+		if (!((*err == '\0') && (authcode != 0) && (authcode == ni->auth) && NOW < expireTime)) {
+
+			LOG_SNOOP(s_OperServ, "NS *I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, authcode);
+			log_services(LOG_SERVICES_NICKSERV_ID, "*I %s -- by %s (%s@%s) [%lu]", ni->nick, source, callerUser->username, callerUser->host, authcode);
+
+			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, nick);
+
+			update_invalid_password_count(callerUser, s_NickServ, nick);
+			return;
+		}
 	} else if (FlagUnset(ni->flags, NI_PASSRESET) && !verify_hashed_password(crypt_password(pass), ni->pass)) {
 
 		TRACE_MAIN();
@@ -1721,213 +1725,212 @@ static void do_identify(CSTR source, User *callerUser, ServiceCommandData *data)
 		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_ERROR_BAD_PASS, nick);
 
 		update_invalid_password_count(callerUser, s_NickServ, nick);
+		return;
+	}
+
+	char accessLevel[256], modebuf[16];
+	int modeIdx = 1;
+	BOOL isOper = FALSE;
+
+	memset(accessLevel, 0, sizeof(accessLevel));
+
+	TRACE_MAIN();
+
+	if (!user_is_identified_to(callerUser, ni->nick)) {
+
+		++(callerUser->idcount);
+		callerUser->id_nicks = mem_realloc(callerUser->id_nicks, sizeof(char *) * callerUser->idcount);
+		callerUser->id_nicks[callerUser->idcount - 1] = str_duplicate(ni->nick);
+	}
+
+	TRACE_MAIN();
+
+	if (sameNick) {
+
+		if (FlagSet(ni->flags, NI_TIMEOUT)) {
+
+			if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
+				log_error(FACILITY_NICKSERV_HANDLE_IDENTIFY, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
+					"do_identify(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
+
+			RemoveFlag(ni->flags, NI_TIMEOUT);
+		}
+
+		// l'utente si e' identificato al nick corrente -> cambiare il lang
+		callerUser->current_lang = EXTRACT_LANG_ID(ni->langID);
+		current_caller_lang = callerUser->current_lang;
 	}
 	else {
 
-		char accessLevel[256], modebuf[16];
-		int modeIdx = 1;
-		BOOL isOper = FALSE;
+		// l'utente si e' identificando ad un altro nick
+		// se NON e' identificato al nick corrente, cambiare il lang
+		if (!user_is_identified_to(callerUser, source)) {
 
-		memset(accessLevel, 0, sizeof(accessLevel));
-
-		TRACE_MAIN();
-
-		if (!user_is_identified_to(callerUser, ni->nick)) {
-
-			++(callerUser->idcount);
-			callerUser->id_nicks = mem_realloc(callerUser->id_nicks, sizeof(char *) * callerUser->idcount);
-			callerUser->id_nicks[callerUser->idcount - 1] = str_duplicate(ni->nick);
-		}
-
-		TRACE_MAIN();
-
-		if (sameNick) {
-
-			if (FlagSet(ni->flags, NI_TIMEOUT)) {
-
-				if (!timeout_remove(toNickServ, TOTYPE_NICKSERV_COUNTDOWN, (unsigned long) ni))
-					log_error(FACILITY_NICKSERV_HANDLE_IDENTIFY, __LINE__, LOG_TYPE_ERROR_ASSERTION, LOG_SEVERITY_ERROR_WARNING,
-						"do_identify(): Timeout not found for %s (NickServ/Countdown)", ni->nick);
-
-				RemoveFlag(ni->flags, NI_TIMEOUT);
-			}
-
-			// l'utente si e' identificato al nick corrente -> cambiare il lang
 			callerUser->current_lang = EXTRACT_LANG_ID(ni->langID);
 			current_caller_lang = callerUser->current_lang;
 		}
-		else {
-
-			// l'utente si e' identificando ad un altro nick
-			// se NON e' identificato al nick corrente, cambiare il lang
-			if (!user_is_identified_to(callerUser, source)) {
-
-				callerUser->current_lang = EXTRACT_LANG_ID(ni->langID);
-				current_caller_lang = callerUser->current_lang;
-			}
-		}
-
-		/* Don't update Last Seen/Usermask/Realname if it's an oper identifying remotely. */
-		if (sameNick || FlagUnset(callerUser->mode, UMODE_I)) {
-
-			ni->last_seen = NOW;
-			if (ni->last_usermask)
-				mem_free(ni->last_usermask);
-
-			ni->last_usermask = mem_malloc(str_len(callerUser->username) + str_len(user_public_host(callerUser)) + 2);
-			sprintf(ni->last_usermask, "%s@%s", callerUser->username, user_public_host(callerUser));
-
-			if (ni->last_realname)
-				mem_free(ni->last_realname);
-			ni->last_realname = str_duplicate(callerUser->realname);
-		}
-
-		if (FlagSet(ni->flags, NI_REMIND))
-			RemoveFlag(ni->flags, NI_REMIND);
-
-		if (IS_NULL(ni->email))
-			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_NO_REGEMAIL_SET);
-
-		isOper = user_is_ircop(callerUser);
-
-		modebuf[0] = '+';
-
-		switch (check_oper(callerUser, nick, NULL)) {
-
-			case ULEVEL_USER:
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r) && FlagUnset(ni->flags, NI_AUTH)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-				break;
-
-			case ULEVEL_HOP:
-				if (FlagUnset(callerUser->mode, UMODE_h)) {
-
-					modebuf[modeIdx++] = 'h';
-					AddFlag(callerUser->mode, UMODE_h);
-				}
-
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_HELPOP), accessLevel, sizeof(accessLevel));
-				break;
-
-			case ULEVEL_SOP:
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_SOP), accessLevel, sizeof(accessLevel));
-				break;
-
-			case ULEVEL_SA:
-				if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
-
-					modebuf[modeIdx++] = 'a';
-					AddFlag(callerUser->mode, UMODE_a);
-				}
-
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_ADMIN), accessLevel, sizeof(accessLevel));
-				break;
-
-			case ULEVEL_SRA:
-				if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
-
-					modebuf[modeIdx++] = 'a';
-					AddFlag(callerUser->mode, UMODE_a);
-				}
-
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_ROOT), accessLevel, sizeof(accessLevel));
-				break;
-
-			case ULEVEL_CODER:
-				if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
-
-					modebuf[modeIdx++] = 'a';
-					AddFlag(callerUser->mode, UMODE_a);
-				}
-
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_CODER), accessLevel, sizeof(accessLevel));
-				break;
-
-			case ULEVEL_MASTER:
-				if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
-
-					modebuf[modeIdx++] = 'a';
-					AddFlag(callerUser->mode, UMODE_a);
-				}
-
-				if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
-
-					modebuf[modeIdx++] = 'r';
-					AddFlag(callerUser->mode, UMODE_r);
-				}
-
-				str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_MASTER), accessLevel, sizeof(accessLevel));
-				break;
-
-			default:
-				LOG_DEBUG_SNOOP("Unknown access return (%d) for user %s", check_oper(callerUser, nick, NULL), callerUser->nick);
-				break;
-		}
-
-		if (modeIdx > 1) {
-
-			modebuf[modeIdx] = '\0';
-			send_user_SVSMODE(s_NickServ, source, modebuf, callerUser->tsinfo);
-		}
-
-		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_ID_OK, ni->nick, accessLevel);
-
-		if (FlagSet(ni->flags, NI_PASSRESET)) {
-			if (CONF_SET_EXTRASNOOP)
-				LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%lu]", nick, source, callerUser->username, callerUser->host, authcode);
-
-			log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%lu]", nick, source, callerUser->username, callerUser->host, authcode);
-
-			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_PASSRESET_REMINDER, 5, authcode);
-			ni->last_email_request = NOW - TEN_MINUTES;
-		}
-		else {
-			if (CONF_SET_EXTRASNOOP)
-				LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));
-
-			log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, password_to_hex(crypt_password(pass)));
-		}
-
-
-		if (sameNick && FlagSet(ni->flags, NI_AUTH))
-			send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_NOT_AUTH, ni->email);
-
-		if (FlagSet(ni->flags, NI_MEMO_SIGNON))
-			check_memos(callerUser, ni);
 	}
+
+	/* Don't update Last Seen/Usermask/Realname if it's an oper identifying remotely. */
+	if (sameNick || FlagUnset(callerUser->mode, UMODE_I)) {
+
+		ni->last_seen = NOW;
+		if (ni->last_usermask)
+			mem_free(ni->last_usermask);
+
+		ni->last_usermask = mem_malloc(str_len(callerUser->username) + str_len(user_public_host(callerUser)) + 2);
+		sprintf(ni->last_usermask, "%s@%s", callerUser->username, user_public_host(callerUser));
+
+		if (ni->last_realname)
+			mem_free(ni->last_realname);
+		ni->last_realname = str_duplicate(callerUser->realname);
+	}
+
+	if (FlagSet(ni->flags, NI_REMIND))
+		RemoveFlag(ni->flags, NI_REMIND);
+
+	if (IS_NULL(ni->email))
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_NO_REGEMAIL_SET);
+
+	isOper = user_is_ircop(callerUser);
+
+	modebuf[0] = '+';
+
+	switch (check_oper(callerUser, nick, NULL)) {
+
+		case ULEVEL_USER:
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r) && FlagUnset(ni->flags, NI_AUTH)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+			break;
+
+		case ULEVEL_HOP:
+			if (FlagUnset(callerUser->mode, UMODE_h)) {
+
+				modebuf[modeIdx++] = 'h';
+				AddFlag(callerUser->mode, UMODE_h);
+			}
+
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_HELPOP), accessLevel, sizeof(accessLevel));
+			break;
+
+		case ULEVEL_SOP:
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_SOP), accessLevel, sizeof(accessLevel));
+			break;
+
+		case ULEVEL_SA:
+			if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
+
+				modebuf[modeIdx++] = 'a';
+				AddFlag(callerUser->mode, UMODE_a);
+			}
+
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_ADMIN), accessLevel, sizeof(accessLevel));
+			break;
+
+		case ULEVEL_SRA:
+			if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
+
+				modebuf[modeIdx++] = 'a';
+				AddFlag(callerUser->mode, UMODE_a);
+			}
+
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_ROOT), accessLevel, sizeof(accessLevel));
+			break;
+
+		case ULEVEL_CODER:
+			if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
+
+				modebuf[modeIdx++] = 'a';
+				AddFlag(callerUser->mode, UMODE_a);
+			}
+
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_CODER), accessLevel, sizeof(accessLevel));
+			break;
+
+		case ULEVEL_MASTER:
+			if (isOper && FlagUnset(callerUser->mode, UMODE_a)) {
+
+				modebuf[modeIdx++] = 'a';
+				AddFlag(callerUser->mode, UMODE_a);
+			}
+
+			if (sameNick && FlagUnset(callerUser->mode, UMODE_r)) {
+
+				modebuf[modeIdx++] = 'r';
+				AddFlag(callerUser->mode, UMODE_r);
+			}
+
+			str_copy_checked(lang_msg(GetCallerLang(), NS_IDENTIFY_SOURCE_IS_MASTER), accessLevel, sizeof(accessLevel));
+			break;
+
+		default:
+			LOG_DEBUG_SNOOP("Unknown access return (%d) for user %s", check_oper(callerUser, nick, NULL), callerUser->nick);
+			break;
+	}
+
+	if (modeIdx > 1) {
+
+		modebuf[modeIdx] = '\0';
+		send_user_SVSMODE(s_NickServ, source, modebuf, callerUser->tsinfo);
+	}
+
+	send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_ID_OK, ni->nick, accessLevel);
+
+	if (FlagSet(ni->flags, NI_PASSRESET)) {
+		if (CONF_SET_EXTRASNOOP)
+			LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%lu]", nick, source, callerUser->username, callerUser->host, authcode);
+
+		log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%lu]", nick, source, callerUser->username, callerUser->host, authcode);
+
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_PASSRESET_REMINDER, 5, authcode);
+		ni->last_email_request = NOW - TEN_MINUTES;
+	}
+	else {
+		if (CONF_SET_EXTRASNOOP)
+			LOG_SNOOP(s_OperServ, "NS I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, user_is_ircop(callerUser) ? "OPER-HIDDEN" : password_to_hex(crypt_password(pass)));
+
+		log_services(LOG_SERVICES_NICKSERV_ID, "I %s -- by %s (%s@%s) [%s]", nick, source, callerUser->username, callerUser->host, password_to_hex(crypt_password(pass)));
+	}
+
+
+	if (sameNick && FlagSet(ni->flags, NI_AUTH))
+		send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_IDENTIFY_NOT_AUTH, ni->email);
+
+	if (FlagSet(ni->flags, NI_MEMO_SIGNON))
+		check_memos(callerUser, ni);
 
 	if (freeMe) {
 

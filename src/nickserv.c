@@ -670,7 +670,6 @@ void nickserv_quarter_hourly_expire() {
 	if (CONF_DISPLAY_UPDATES)
 		send_globops(s_NickServ, "Completed Pass Reset Expires (\2%d\2/\2%d\2)", xcount, count);
 }
-}
 
 void nickserv_daily_expire() {
 

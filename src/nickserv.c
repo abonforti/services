@@ -2266,8 +2266,14 @@ static void do_set_password(User *callerUser, CSTR param) {
 			else {
 
 				TRACE_MAIN();
-				LOG_SNOOP(s_OperServ, "NS *P %s -- by %s (%s@%s) [Wrong Old Pass: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, crypted_oldpass);
-				log_services(LOG_SERVICES_NICKSERV_GENERAL, "*P %s -- by %s (%s@%s) [Old Pass: %s - Given: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(callerUser->ni->pass), password_to_hex(crypted_oldpass));
+				if (FlagSet(callerUser->ni->flags, NI_PASSRESET)) {
+					LOG_SNOOP(s_OperServ, "NS *P %s -- by %s (%s@%s) [Wrong Reset Pass Code]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host);
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "*P %s -- by %s (%s@%s) [Wrong Reset Pass Code]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host);
+				}
+				else {
+					LOG_SNOOP(s_OperServ, "NS *P %s -- by %s (%s@%s) [Wrong Old Pass: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, crypted_oldpass);
+					log_services(LOG_SERVICES_NICKSERV_GENERAL, "*P %s -- by %s (%s@%s) [Old Pass: %s - Given: %s ]", callerUser->ni->nick, callerUser->nick, callerUser->username, callerUser->host, password_to_hex(callerUser->ni->pass), password_to_hex(crypted_oldpass));
+				}
 
 				send_notice_lang_to_user(s_NickServ, callerUser, GetCallerLang(), NS_SET_PASSWD_ERROR_WRONG_OLD_PASS, callerUser->ni->nick);
 
